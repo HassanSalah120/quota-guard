@@ -158,7 +158,8 @@
     const state = videos.get(video);
     if (!state || !video.isConnected) return;
     const blocked = protect() && video.getAttribute('data-qg-manual-play') !== 'yes';
-    if (!blocked) {
+    // TikTok and YouTube have native prominent center play buttons; do not overlay redundant chips
+    if (!blocked || SITE === 'tiktok' || SITE === 'youtube') {
       if (state.chip) {
         state.chip.remove();
         state.chip = null;
@@ -169,9 +170,9 @@
       }
       return;
     }
-    const parent = video.parentElement;
-    if (!parent) return;
-    if (state.chip && state.chip.parentElement !== parent) {
+    const container = getPlayerContainer(video) || video.parentElement;
+    if (!container) return;
+    if (state.chip && state.chip.parentElement !== container) {
       state.chip.remove();
       state.chip = null;
     }
@@ -191,12 +192,12 @@
       try { await video.play(); }
       catch (_) {}
     });
-    if (getComputedStyle(parent).position === 'static') {
-      state.modifiedParent = parent;
-      state.oldPosition = parent.style.position;
-      parent.style.position = 'relative';
+    if (getComputedStyle(container).position === 'static') {
+      state.modifiedParent = container;
+      state.oldPosition = container.style.position;
+      container.style.position = 'relative';
     }
-    parent.appendChild(chip);
+    container.appendChild(chip);
     state.chip = chip;
   }
 

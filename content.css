@@ -34,6 +34,12 @@
 }
 .qg-play-chip:focus-visible { outline: 3px solid #70f1cc !important; }
 
+/* Hide artificial play chip on platforms with native prominent center play buttons */
+:root[data-qg-site="tiktok"] .qg-play-chip,
+:root[data-qg-site="youtube"] .qg-play-chip {
+  display: none !important;
+}
+
 /* Subtle on-video indicator pill that confirms stream resolution persistently */
 .qg-pill-badge {
   position: absolute !important;
