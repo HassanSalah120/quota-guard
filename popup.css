@@ -51,6 +51,14 @@ header {
   gap: 8px;
 }
 
+.brand-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: block;
+  box-shadow: 0 0 10px rgba(78, 211, 166, 0.4);
+}
+
 .logo {
   width: 24px;
   height: 24px;

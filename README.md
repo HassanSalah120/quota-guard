@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="icons/icon128.png" alt="QuotaGuard Logo" width="96" height="96" />
+  <img src="assets/branding/quotaguard-banner.png" alt="QuotaGuard Banner" width="100%" style="max-width: 860px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);" />
 </p>
-
-<h1 align="center">QuotaGuard</h1>
 
 <p align="center">
   <b>Smart Video Data Saver & Radio Mode for YouTube, Facebook, X (Twitter), and TikTok</b><br />
