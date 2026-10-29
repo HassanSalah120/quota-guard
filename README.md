@@ -18,12 +18,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard.crx">
-    <img src="https://img.shields.io/badge/⚡_Download-.CRX_Direct_Install-4ed3a6?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Download .CRX" />
-  </a>
-  &nbsp;
   <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip">
-    <img src="https://img.shields.io/badge/📦_Download-.ZIP_Package-38bdf8?style=for-the-badge&logo=github&logoColor=white" alt="Download .ZIP" />
+    <img src="https://img.shields.io/badge/📦_Download_QuotaGuard-v1.2.0_(.ZIP)-4ed3a6?style=for-the-badge&logo=github&logoColor=white" alt="Download QuotaGuard .ZIP" />
   </a>
 </p>
 
@@ -109,35 +105,19 @@ Streaming 1 hour of video on standard mobile or metered plans:
 
 ---
 
-## 🚀 Installation & Browser Setup
+## 🚀 Installation (15 Seconds)
 
-### Method 1: Direct Install via `.crx` (Easiest — 15 Seconds)
+Because Google Chrome and Microsoft Edge require official Web Store digital signatures for `.crx` files (throwing `CRX_REQUIRED_PROOF_MISSING` on offline drag-and-drop), open-source extensions are installed directly via **Load Unpacked**:
 
-1. Download [`quota-guard.crx`](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard.crx).
-2. Open your browser to the Extensions manager:
-   - **Chrome / Brave:** `chrome://extensions`
-   - **Microsoft Edge:** `edge://extensions`
-3. Turn on the **Developer mode** switch in the top-right corner.
-4. **Drag and drop** the downloaded `quota-guard.crx` file anywhere onto the extensions page.
-5. Click **Add extension** when prompted. Done!
+1. **Download:** Click to download [**quota-guard-v1.2.0.zip**](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip).
+2. **Extract:** Right-click the downloaded file and select **Extract All...**
+3. **Open Extensions:** In your browser (Chrome, Edge, Brave, or Opera), open the extensions manager:
+   - Chrome / Brave: `chrome://extensions`
+   - Edge: `edge://extensions`
+4. **Developer Mode:** Turn on the **Developer mode** switch (top-right corner).
+5. **Load:** Click **Load unpacked** (top-left) and select the extracted `quota-guard` folder.
 
----
-
-### Method 2: Load from `.zip` Release
-
-1. Download and extract [`quota-guard-v1.2.0.zip`](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip).
-2. Open `chrome://extensions` (or `edge://extensions`) and enable **Developer mode**.
-3. Click **Load unpacked** (top-left button).
-4. Select the extracted folder containing `manifest.json`.
-
----
-
-### Method 3: From Source (Developers)
-
-```bash
-git clone https://github.com/HassanSalah120/quota-guard.git
-```
-Then load the cloned directory via **Load unpacked** in your browser.
+QuotaGuard will immediately appear in your browser toolbar ready to protect your data!
 
 ---
 
