@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "QuotaGuard — Facebook, X, TikTok & YouTube Data Saver",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Save video data on Facebook, X, TikTok, and YouTube with HLS/DASH/InnerTube stream quality caps, automatic player quality selection, and autoplay controls.",
   "permissions": [
     "storage",

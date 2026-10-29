@@ -35,11 +35,14 @@
   document.createElement = function(tagName, ...args) {
     const el = Reflect.apply(origCreateElement, document, [tagName, ...args]);
     if (typeof tagName === 'string' && tagName.toLowerCase() === 'video') {
-      if (document.documentElement?.getAttribute('data-qg-autoplay') === 'block') {
-        try {
-          el.autoplay = false;
-          el.preload = 'none';
-        } catch (_) {}
+      const host = location.hostname.toLowerCase();
+      if (!host.includes('youtube.com') && !host.endsWith('youtu.be')) {
+        if (document.documentElement?.getAttribute('data-qg-autoplay') === 'block') {
+          try {
+            el.autoplay = false;
+            el.preload = 'none';
+          } catch (_) {}
+        }
       }
     }
     return el;
@@ -47,6 +50,8 @@
 
   // Prevent background feed videos from buffering chunks prior to interaction
   document.addEventListener('loadstart', (e) => {
+    const host = location.hostname.toLowerCase();
+    if (host.includes('youtube.com') || host.endsWith('youtu.be')) return;
     const v = e.target;
     if (v instanceof HTMLVideoElement && document.documentElement?.getAttribute('data-qg-autoplay') === 'block') {
       if (v.getAttribute('data-qg-manual-play') !== 'yes' && v.paused) {
@@ -90,6 +95,14 @@
 
   const originalPlay = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function (...args) {
+    // YouTube Anti-Adblock Compliance:
+    // YouTube's player and ad-engine require unhindered HTMLMediaElement.prototype.play calls.
+    // Rejecting play() on YouTube during ad pre-rolls trips YouTube's ad-block detection modal.
+    const host = location.hostname.toLowerCase();
+    if (host.includes('youtube.com') || host.endsWith('youtu.be')) {
+      return Reflect.apply(originalPlay, this, args);
+    }
+
     if (this instanceof HTMLVideoElement &&
         document.documentElement?.getAttribute('data-qg-autoplay') !== 'allow') {
       const isManual = this.getAttribute('data-qg-manual-play') === 'yes' ||
@@ -128,6 +141,18 @@
         player.setPlaybackQuality(bestLevel);
       }
 
+      // Update badge attribute and notify
+      const numericTarget = window.QuotaGuardYouTube?.QUALITY_MAP?.[bestLevel] || q;
+      const status = q === 'audio' ? 'Radio mode (sound only) applied' : `${numericTarget}p YouTube cap applied`;
+      if (document.documentElement?.getAttribute('data-qg-quality-applied') !== status) {
+        document.documentElement?.setAttribute('data-qg-quality-applied', status);
+        try {
+          document.dispatchEvent(new CustomEvent('qg-cap-applied', {
+            detail: { type: 'youtube', quality: numericTarget, time: Date.now() }
+          }));
+        } catch (_) {}
+      }
+
       if (!player.__qgQualityHooked && typeof player.addEventListener === 'function') {
         player.__qgQualityHooked = true;
         player.addEventListener('onPlaybackQualityChange', (newQuality) => {
@@ -148,14 +173,7 @@
   window.addEventListener('yt-navigate-finish', enforceYouTubeQuality);
   window.addEventListener('yt-player-updated', enforceYouTubeQuality);
   window.addEventListener('yt-navigate-start', () => {
-    // When navigating to another YouTube video, clear prior manual play flag so autoplay block is enforced
-    try {
-      const videos = document.querySelectorAll('video');
-      videos.forEach(v => {
-        v.removeAttribute('data-qg-manual-play');
-        delete v.__qgUserTime;
-      });
-    } catch (_) {}
+    enforceYouTubeQuality();
   });
   setInterval(enforceYouTubeQuality, 2000);
 })();

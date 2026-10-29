@@ -141,7 +141,8 @@
   }
 
   const io = new IntersectionObserver(entries => {
-    if (!settings.enabled || !settings.pauseOffscreen) return;
+    // YouTube handles its own miniplayer/picture-in-picture when scrolling to comments; do not force-pause on YouTube
+    if (!settings.enabled || !settings.pauseOffscreen || SITE === 'youtube') return;
     for (const entry of entries) {
       const video = entry.target;
       if (entry.isIntersecting || video.paused) continue;
@@ -207,15 +208,18 @@
       videos.set(video, {chip: null, badge: null, modifiedParent: null, oldPosition: null});
       io.observe(video);
     }
-    if (settings.enabled && settings.preventPreload &&
-        video.getAttribute('data-qg-manual-play') !== 'yes') {
-      if (video.preload !== 'none') video.preload = 'none';
+    // YouTube anti-adblock compliance: do not interfere with YouTube's ad-engine or media element state
+    if (SITE !== 'youtube') {
+      if (settings.enabled && settings.preventPreload &&
+          video.getAttribute('data-qg-manual-play') !== 'yes') {
+        if (video.preload !== 'none') video.preload = 'none';
+      }
+      if (protect() && video.getAttribute('data-qg-manual-play') !== 'yes') {
+        if (video.autoplay) video.autoplay = false;
+        if (!video.paused) video.pause();
+      }
+      if (settings.enabled && settings.strictBlock && !video.paused) video.pause();
     }
-    if (protect() && video.getAttribute('data-qg-manual-play') !== 'yes') {
-      if (video.autoplay) video.autoplay = false;
-      if (!video.paused) video.pause();
-    }
-    if (settings.enabled && settings.strictBlock && !video.paused) video.pause();
     renderChip(video);
   }
 
@@ -247,6 +251,11 @@
     const video = event.target;
     if (!isVideoElement(video)) return;
     if (!videos.has(video)) applyVideo(video);
+    // YouTube anti-adblock compliance: allow YouTube's player and ads to play unpaused
+    if (SITE === 'youtube') {
+      renderChip(video);
+      return;
+    }
     if (settings.enabled && (settings.strictBlock ||
         (settings.stopAutoplay && video.getAttribute('data-qg-manual-play') !== 'yes'))) {
       video.pause();

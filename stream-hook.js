@@ -56,28 +56,11 @@
     }
   } catch (_) {}
 
-  // --- Early YouTube Initial Player Response Interception ---
-  try {
-    let initialPlayerResponseVal = window.ytInitialPlayerResponse;
-    Object.defineProperty(window, 'ytInitialPlayerResponse', {
-      configurable: true,
-      enumerable: true,
-      get() {
-        return initialPlayerResponseVal;
-      },
-      set(val) {
-        const q = quality();
-        if (q !== 'auto' && val && typeof val === 'object' && val.streamingData && window.QuotaGuardYouTube) {
-          try {
-            const adapted = window.QuotaGuardYouTube.limitYouTubeStreamingData(val, q);
-            initialPlayerResponseVal = adapted.data || val;
-            return;
-          } catch (_) {}
-        }
-        initialPlayerResponseVal = val;
-      }
-    });
-  } catch (_) {}
+  // YouTube Anti-Adblock Compliance:
+  // Do NOT define accessor properties (getter/setter) on window.ytInitialPlayerResponse.
+  // YouTube's anti-adblock integrity checker specifically probes Object.getOwnPropertyDescriptor(window, 'ytInitialPlayerResponse').
+  // Defining an accessor descriptor immediately triggers YouTube's "Ad blockers violate YouTube's Terms of Service" banner.
+  // YouTube video quality is securely enforced via the official HTML5 Player API (#movie_player.setPlaybackQualityRange).
 
   function classifyUrl(raw) {
     try {

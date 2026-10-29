@@ -65,24 +65,9 @@ async function syncBlockingRules() {
     });
   }
 
-  if (settings.youtube.enabled && settings.youtube.quality !== 'auto') {
-    addRules.push({
-      id: 1004, priority: 2,
-      action: {
-        type: 'modifyHeaders',
-        requestHeaders: [
-          { header: 'Save-Data', operation: 'set', value: 'on' },
-          { header: 'Downlink', operation: 'set', value: '0.35' },
-          { header: 'ECT', operation: 'set', value: '3g' },
-          { header: 'Sec-CH-Prefers-Reduced-Data', operation: 'set', value: '1' }
-        ]
-      },
-      condition: {
-        requestDomains: ['youtube.com', 'googlevideo.com', 'ytimg.com'],
-        resourceTypes: ['xmlhttprequest', 'media', 'sub_frame', 'other']
-      }
-    });
-  }
+  // Note: We deliberately do NOT inject network-layer headers (Save-Data, Downlink, ECT) on YouTube/GoogleVideo.
+  // Google's ad-verification infrastructure flags header modifications on ad chunks/telemetry as anomalous or ad-blocking.
+  // YouTube video quality is enforced cleanly and safely via the HTML5 Player API (#movie_player.setPlaybackQualityRange).
 
   if (settings.facebook.enabled && settings.facebook.strictBlock) {
     addRules.push({

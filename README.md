@@ -11,15 +11,15 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-success?style=flat-square&color=4ed3a6" alt="Manifest V3" />
-  <img src="https://img.shields.io/badge/Release-v1.2.0-blue?style=flat-square&color=38bdf8" alt="v1.2.0" />
+  <img src="https://img.shields.io/badge/Release-v1.2.1-blue?style=flat-square&color=38bdf8" alt="v1.2.1" />
   <img src="https://img.shields.io/badge/Tests-14%2F14%20Passing%20(100%25)-success?style=flat-square&color=38bdf8" alt="Tests 100%" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License MIT" />
   <img src="https://img.shields.io/badge/Platform-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera-lightgrey?style=flat-square" alt="Browsers" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip">
-    <img src="https://img.shields.io/badge/📦_Download_QuotaGuard-v1.2.0_(.ZIP)-4ed3a6?style=for-the-badge&logo=github&logoColor=white" alt="Download QuotaGuard .ZIP" />
+  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.1/quota-guard-v1.2.1.zip">
+    <img src="https://img.shields.io/badge/📦_Download_QuotaGuard-v1.2.1_(.ZIP)-4ed3a6?style=for-the-badge&logo=github&logoColor=white" alt="Download QuotaGuard .ZIP" />
   </a>
 </p>
 
@@ -109,7 +109,7 @@ Streaming 1 hour of video on standard mobile or metered plans:
 
 Because Google Chrome and Microsoft Edge require official Web Store digital signatures for `.crx` files (throwing `CRX_REQUIRED_PROOF_MISSING` on offline drag-and-drop), open-source extensions are installed directly via **Load Unpacked**:
 
-1. **Download:** Click to download [**quota-guard-v1.2.0.zip**](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip).
+1. **Download:** Click to download [**quota-guard-v1.2.1.zip**](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.1/quota-guard-v1.2.1.zip).
 2. **Extract:** Right-click the downloaded file and select **Extract All...**
 3. **Open Extensions:** In your browser (Chrome, Edge, Brave, or Opera), open the extensions manager:
    - Chrome / Brave: `chrome://extensions`

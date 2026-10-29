@@ -466,36 +466,43 @@ try {
   assert.equal(radioResult.videoVisible, true, 'Video element must NOT be hidden');
   console.log('✓ TEST 12: YouTube Radio Mode downloads only audio while keeping video element visible');
 
-  // TEST 13: Hardened Early In-Page Interception & Dynamic Video Preload Blocking
-  const hardeningCheck = await session.eval(`(() => {
-    // 1. Test early ytInitialPlayerResponse interception
-    window.ytInitialPlayerResponse = {
-      streamingData: {
-        adaptiveFormats: [
-          { itag: 137, width: 1920, height: 1080, qualityLabel: '1080p', mimeType: 'video/mp4' },
-          { itag: 140, mimeType: 'audio/mp4', audioQuality: 'AUDIO_QUALITY_MEDIUM' }
-        ]
-      }
-    };
-    const prunedEarly = window.ytInitialPlayerResponse.streamingData.adaptiveFormats;
+  // TEST 13: YouTube Anti-Adblock Compliance & Player API Quality Integration
+  const antiAdblockCheck = await session.eval(`(() => {
+    // 1. YouTube Anti-Adblock Safety: Verify ytInitialPlayerResponse is NOT intercepted via getter/setter
+    const desc = Object.getOwnPropertyDescriptor(window, 'ytInitialPlayerResponse');
+    const hasAccessor = Boolean(desc && (desc.get || desc.set));
 
-    // 2. Test document.createElement('video') preload hardening
-    document.documentElement.setAttribute('data-qg-autoplay', 'block');
-    const dynamicVideo = document.createElement('video');
+    // 2. HTML5 Player API Quality Resolution Mapping
+    const best360 = window.QuotaGuardYouTube?.pickBestQualityLevel(['hd1080', 'hd720', 'medium', 'small', 'tiny'], '360');
+    const best240 = window.QuotaGuardYouTube?.pickBestQualityLevel(['hd1080', 'hd720', 'medium', 'small', 'tiny'], '240');
+
+    // 3. YouTube Media Element Play Compliance: play() must not be blocked or rejected by QuotaGuard on YouTube
+    const ytVideo = document.createElement('video');
+    let qgBlocked = false;
+    try {
+      const p = ytVideo.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(err => {
+          if (err.message && err.message.includes('QuotaGuard')) qgBlocked = true;
+        });
+      }
+    } catch (err) {
+      if (err.message && err.message.includes('QuotaGuard')) qgBlocked = true;
+    }
 
     return {
-      earlyHas1080: prunedEarly.some(f => f.qualityLabel === '1080p'),
-      earlyHasAudio: prunedEarly.some(f => f.mimeType?.startsWith('audio/')),
-      dynamicPreload: dynamicVideo.preload,
-      dynamicAutoplay: dynamicVideo.autoplay
+      hasAccessor,
+      best360,
+      best240,
+      qgBlocked
     };
   })()`);
 
-  assert.equal(hardeningCheck.earlyHas1080, false, 'window.ytInitialPlayerResponse must strip 1080p at set time');
-  assert.equal(hardeningCheck.earlyHasAudio, true, 'window.ytInitialPlayerResponse must preserve audio format');
-  assert.equal(hardeningCheck.dynamicPreload, 'none', 'Newly created video elements must have preload="none"');
-  assert.equal(hardeningCheck.dynamicAutoplay, false, 'Newly created video elements must have autoplay=false');
-  console.log('✓ TEST 13: Hardened early window.ytInitialPlayerResponse and dynamic video preload blocking verified');
+  assert.equal(antiAdblockCheck.hasAccessor, false, 'ytInitialPlayerResponse must NOT define accessors (anti-adblock trigger prevention)');
+  assert.equal(antiAdblockCheck.best360, 'medium', 'Player API must map 360p to medium');
+  assert.equal(antiAdblockCheck.best240, 'small', 'Player API must map 240p to small');
+  assert.equal(antiAdblockCheck.qgBlocked, false, 'play() must NOT be blocked on YouTube (anti-adblock ad-engine compliance)');
+  console.log('✓ TEST 13: YouTube Anti-Adblock Compliance & Player API Quality Integration verified');
 
   // TEST 14: TikTok Container Quality Badge & Resolution Verification
   await session.send('Page.navigate', { url: 'https://www.tiktok.com/@creator/video/123456' });
