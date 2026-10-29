@@ -48,7 +48,10 @@
       [...document.querySelectorAll('video')].find(v => QuotaGuardPlayer.visible(v)) ||
       document.querySelector('video');
     if (targetVideo) {
-      const text = isRadio ? 'Radio Mode (Sound Only)' : `${q}p Cap Active`;
+      let text = isRadio ? 'Radio Mode (Sound Only)' : `${q}p Cap Active`;
+      if (SITE === 'tiktok' && (q === 540 || q === '540')) {
+        text = '540p Active (TikTok Min • ~75% Saved)';
+      }
       showPillBadge(targetVideo, text);
     }
   });

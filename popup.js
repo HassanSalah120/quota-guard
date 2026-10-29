@@ -90,6 +90,26 @@
       data.quality = '360';
     }
 
+    // TikTok-specific stream labeling: TikTok only encodes down to 540p on its servers
+    const opt240 = document.querySelector('#quality option[value="240"]');
+    const opt360 = document.querySelector('#quality option[value="360"]');
+    const opt480 = document.querySelector('#quality option[value="480"]');
+    const tiktokTip = document.getElementById('tiktok-tip');
+    if (tiktokTip) tiktokTip.style.display = active === 'tiktok' ? 'block' : 'none';
+
+    if (active === 'tiktok') {
+      if (opt240) opt240.hidden = true;
+      if (opt360) opt360.textContent = '540p • Lowest available on TikTok (~75% less data)';
+      if (opt480) opt480.textContent = '720p • Balanced HD (~40% less data)';
+    } else {
+      if (opt240) {
+        opt240.hidden = false;
+        opt240.textContent = '240p • Maximum saving (~75% less data)';
+      }
+      if (opt360) opt360.textContent = '360p • Recommended (~50% less data)';
+      if (opt480) opt480.textContent = '480p • Balanced (~30% less data)';
+    }
+
     async function updateQualityVerification() {
       if (!verifier) return;
       verifier.textContent = 'Stream status: checking active tab...';

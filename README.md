@@ -11,15 +11,15 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-success?style=flat-square&color=4ed3a6" alt="Manifest V3" />
-  <img src="https://img.shields.io/badge/Release-v1.2.1-blue?style=flat-square&color=38bdf8" alt="v1.2.1" />
+  <img src="https://img.shields.io/badge/Release-v1.2.2-blue?style=flat-square&color=38bdf8" alt="v1.2.2" />
   <img src="https://img.shields.io/badge/Tests-14%2F14%20Passing%20(100%25)-success?style=flat-square&color=38bdf8" alt="Tests 100%" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License MIT" />
   <img src="https://img.shields.io/badge/Platform-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera-lightgrey?style=flat-square" alt="Browsers" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.1/quota-guard-v1.2.1.zip">
-    <img src="https://img.shields.io/badge/📦_Download_QuotaGuard-v1.2.1_(.ZIP)-4ed3a6?style=for-the-badge&logo=github&logoColor=white" alt="Download QuotaGuard .ZIP" />
+  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.2/quota-guard-v1.2.2.zip">
+    <img src="https://img.shields.io/badge/📦_Download_QuotaGuard-v1.2.2_(.ZIP)-4ed3a6?style=for-the-badge&logo=github&logoColor=white" alt="Download QuotaGuard .ZIP" />
   </a>
 </p>
 
@@ -93,8 +93,8 @@ Streaming 1 hour of video on standard mobile or metered plans:
 
 | Feature | YouTube | Facebook | X (Twitter) | TikTok |
 | :--- | :---: | :---: | :---: | :---: |
-| **Stream Interception** | InnerTube JSON | MPEG-DASH / GraphQL | HLS Master (`.m3u8`) | XGPlayer JSON |
-| **Quality Ceiling (240p/360p/480p)** | ✅ | ✅ | ✅ | ✅ |
+| **Stream Interception** | InnerTube JSON | MPEG-DASH / GraphQL | HLS Master (`.m3u8`) | XGPlayer JSON & HLS Live |
+| **Quality Ceiling** | 240p / 360p / 480p | 240p / 360p / 480p | 240p / 360p / 480p | 540p / 720p *(Server Min: 540p)* |
 | **Radio Mode (Sound Only)** | ✅ | ✅ | *(Multiplexed)* | *(Multiplexed)* |
 | **Autoplay Suppression** | ✅ | ✅ | ✅ | ✅ |
 | **Preload Blocking** | ✅ | ✅ | ✅ | ✅ |
@@ -103,13 +103,16 @@ Streaming 1 hour of video on standard mobile or metered plans:
 | **On-Video Quality Pill** | ✅ | ✅ | ✅ | ✅ |
 | **Keyboard Shortcut (`Alt + Q`)** | ✅ | ✅ | ✅ | ✅ |
 
+> **ℹ️ Technical Note on TikTok Video Encoding:**
+> Unlike YouTube and Facebook, ByteDance (TikTok) servers do not encode portrait videos below **540p** (960×540 / 1024×576). QuotaGuard intercepts TikTok's XGPlayer JSON payload and locks the stream to the absolute lowest 540p tier, stripping 1080p and 720p streams and saving up to **~75% of video bandwidth**!
+
 ---
 
 ## 🚀 Installation (15 Seconds)
 
 Because Google Chrome and Microsoft Edge require official Web Store digital signatures for `.crx` files (throwing `CRX_REQUIRED_PROOF_MISSING` on offline drag-and-drop), open-source extensions are installed directly via **Load Unpacked**:
 
-1. **Download:** Click to download [**quota-guard-v1.2.1.zip**](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.1/quota-guard-v1.2.1.zip).
+1. **Download:** Click to download [**quota-guard-v1.2.2.zip**](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.2/quota-guard-v1.2.2.zip).
 2. **Extract:** Right-click the downloaded file and select **Extract All...**
 3. **Open Extensions:** In your browser (Chrome, Edge, Brave, or Opera), open the extensions manager:
    - Chrome / Brave: `chrome://extensions`

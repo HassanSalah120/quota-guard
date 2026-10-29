@@ -68,9 +68,8 @@
       const host = url.hostname.toLowerCase();
       const href = url.href.toLowerCase();
 
-      // HLS Master Playlists (X / Twitter and video CDNs)
-      if ((host === 'video.twimg.com' || host.endsWith('.twimg.com') || host.endsWith('.fbcdn.net')) &&
-          /\.m3u8(?:$|[?#])/i.test(url.href)) {
+      // HLS Master Playlists (X / Twitter, TikTok Live, and video CDNs)
+      if (/\.m3u8(?:$|[?#])/i.test(url.href)) {
         return 'hls';
       }
 
@@ -80,10 +79,12 @@
         return 'dash';
       }
 
-      // TikTok video API endpoints and feed items (exclude generic /api/ telemetry, monitoring, or auth)
+      // TikTok video API endpoints, feed items, and profile lists
       if ((host.endsWith('tiktok.com') || host.endsWith('tiktokv.com')) &&
           (href.includes('item_list') || href.includes('item/detail') || href.includes('/feed/') ||
-           href.includes('recommend') || href.includes('/post/'))) {
+           href.includes('recommend') || href.includes('/post/') || href.includes('/user/') ||
+           href.includes('/explore/') || href.includes('/related/') || href.includes('/share/') ||
+           href.includes('/aweme/'))) {
         return 'tiktok';
       }
 
