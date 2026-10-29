@@ -31,9 +31,9 @@
   }
 
   // --- Dynamic Media Element Preload Hardening ---
-  const origCreateElement = document.createElement;
+  const origCreateElement = document.createElement.bind(document);
   document.createElement = function(tagName, ...args) {
-    const el = Reflect.apply(origCreateElement, this, [tagName, ...args]);
+    const el = Reflect.apply(origCreateElement, document, [tagName, ...args]);
     if (typeof tagName === 'string' && tagName.toLowerCase() === 'video') {
       if (document.documentElement?.getAttribute('data-qg-autoplay') === 'block') {
         try {

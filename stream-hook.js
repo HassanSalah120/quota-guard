@@ -18,9 +18,11 @@
     return node?.getAttribute('data-qg-quality') || '360';
   }
 
-  // --- Network Connection Spoofing (Forces Facebook/X/TikTok ABR to low resolution) ---
+  // --- Network Connection Spoofing (Only for Facebook where native ABR requires downlink hints) ---
+  // Avoid touching navigator.connection on TikTok/YouTube/X where SDKs (like Slardar) bind to native slots.
   try {
-    if (navigator.connection) {
+    const host = location.hostname.toLowerCase();
+    if (host.includes('facebook.com') && navigator.connection) {
       const origConn = navigator.connection;
       const getQualityDownlink = () => {
         const q = quality();
@@ -43,6 +45,10 @@
               if (prop === 'saveData') return true;
               const val = Reflect.get(target, prop, target);
               return typeof val === 'function' ? val.bind(target) : val;
+            },
+            set(target, prop, value) {
+              try { target[prop] = value; } catch (_) {}
+              return true;
             }
           });
         }
@@ -222,8 +228,13 @@
 
   // --- JSON.parse Hook (Catches SSR payloads and initial Relay cache) ---
   const originalJsonParse = JSON.parse;
+  let isParsingJson = false;
   JSON.parse = function (text, reviver) {
-    if (typeof text === 'string' && quality() !== 'auto') {
+    if (isParsingJson || typeof text !== 'string' || quality() === 'auto') {
+      return originalJsonParse.call(this, text, reviver);
+    }
+    isParsingJson = true;
+    try {
       if (text.includes('dash_manifest') || text.includes('playable_url') || text.includes('<MPD')) {
         text = adapt(text, 'dash');
       } else if (text.includes('bitrateInfo') || text.includes('bit_rate')) {
@@ -231,6 +242,9 @@
       } else if (text.includes('streamingData')) {
         text = adapt(text, 'youtube');
       }
+    } catch (_) {}
+    finally {
+      isParsingJson = false;
     }
     return originalJsonParse.call(this, text, reviver);
   };
@@ -243,9 +257,9 @@
       : (args[0] instanceof URL ? args[0].href : args[0]?.url);
 
     const streamType = classifyUrl(rawUrl);
-    if (!streamType || quality() === 'auto') return Reflect.apply(nativeFetch, this, args);
+    if (!streamType || quality() === 'auto') return Reflect.apply(nativeFetch, window, args);
 
-    return Reflect.apply(nativeFetch, this, args).then(response => {
+    return Reflect.apply(nativeFetch, window, args).then(response => {
       if (!response.ok) return response;
       return new Proxy(response, {
         get(target, prop) {
