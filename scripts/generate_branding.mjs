@@ -206,11 +206,10 @@ const svgBanner = `<?xml version="1.0" encoding="UTF-8"?>
   </g>
 </svg>`;
 
-// Write the SVG files
+// Write the SVG files exclusively to assets/branding/
 fs.writeFileSync(path.join(BRANDING_DIR, 'quotaguard-icon.svg'), svgIcon, 'utf8');
 fs.writeFileSync(path.join(BRANDING_DIR, 'quotaguard-logo.svg'), svgLogo, 'utf8');
 fs.writeFileSync(path.join(BRANDING_DIR, 'quotaguard-banner.svg'), svgBanner, 'utf8');
-fs.writeFileSync(path.join(ICONS_DIR, 'icon.svg'), svgIcon, 'utf8');
 
 console.log('✓ Master vector SVGs created in assets/branding and icons/');
 
