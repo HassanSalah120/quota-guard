@@ -11,9 +11,20 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-success?style=flat-square&color=4ed3a6" alt="Manifest V3" />
-  <img src="https://img.shields.io/badge/Tests-13%2F13%20Passing%20(100%25)-success?style=flat-square&color=38bdf8" alt="Tests 100%" />
+  <img src="https://img.shields.io/badge/Release-v1.2.0-blue?style=flat-square&color=38bdf8" alt="v1.2.0" />
+  <img src="https://img.shields.io/badge/Tests-14%2F14%20Passing%20(100%25)-success?style=flat-square&color=38bdf8" alt="Tests 100%" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License MIT" />
   <img src="https://img.shields.io/badge/Platform-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera-lightgrey?style=flat-square" alt="Browsers" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard.crx">
+    <img src="https://img.shields.io/badge/⚡_Download-.CRX_Direct_Install-4ed3a6?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Download .CRX" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip">
+    <img src="https://img.shields.io/badge/📦_Download-.ZIP_Package-38bdf8?style=for-the-badge&logo=github&logoColor=white" alt="Download .ZIP" />
+  </a>
 </p>
 
 ---
@@ -98,22 +109,35 @@ Streaming 1 hour of video on standard mobile or metered plans:
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Browser Setup
 
-### Load Unpacked in Chrome, Edge, Brave, or Opera
+### Method 1: Direct Install via `.crx` (Easiest — 15 Seconds)
 
-1. Clone or download this repository:
-   ```bash
-   git clone https://github.com/HassanSalah120/quota-guard.git
-   ```
-2. Open your browser and navigate to the Extensions management page:
+1. Download [`quota-guard.crx`](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard.crx).
+2. Open your browser to the Extensions manager:
    - **Chrome / Brave:** `chrome://extensions`
    - **Microsoft Edge:** `edge://extensions`
-   - **Opera:** `opera://extensions`
-3. Turn on the **Developer mode** toggle (top-right corner).
-4. Click **Load unpacked** (top-left).
-5. Select the folder containing `manifest.json`.
-6. Open YouTube, Facebook, X, or TikTok—QuotaGuard is active immediately!
+3. Turn on the **Developer mode** switch in the top-right corner.
+4. **Drag and drop** the downloaded `quota-guard.crx` file anywhere onto the extensions page.
+5. Click **Add extension** when prompted. Done!
+
+---
+
+### Method 2: Load from `.zip` Release
+
+1. Download and extract [`quota-guard-v1.2.0.zip`](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.0/quota-guard-v1.2.0.zip).
+2. Open `chrome://extensions` (or `edge://extensions`) and enable **Developer mode**.
+3. Click **Load unpacked** (top-left button).
+4. Select the extracted folder containing `manifest.json`.
+
+---
+
+### Method 3: From Source (Developers)
+
+```bash
+git clone https://github.com/HassanSalah120/quota-guard.git
+```
+Then load the cloned directory via **Load unpacked** in your browser.
 
 ---
 
@@ -162,8 +186,9 @@ PASS: DASH master filtering, portrait/landscape, lowest fallback, Radio Mode, FB
 ✓ TEST 11: YouTube InnerTube API intercepted via response.json() & capped to 360p
 ✓ TEST 12: YouTube Radio Mode downloads only audio while keeping video element visible
 ✓ TEST 13: Hardened early window.ytInitialPlayerResponse and dynamic video preload blocking verified
+✓ TEST 14: TikTok player container detection & 540p stream badge verified
 =======================================================
-  ALL 13 REAL BROWSER INTEGRATION TESTS PASSED 100%
+  ALL 14 REAL BROWSER INTEGRATION TESTS PASSED 100%
 =======================================================
 ```
 

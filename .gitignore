@@ -19,5 +19,7 @@ yarn-error.log*
 
 # Scratch & local testing
 scratch/
+dist/
+*.pem
 .idea/
 .vscode/
