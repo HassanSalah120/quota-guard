@@ -84,8 +84,11 @@
     return { changed: false, selected: null };
   }
 
-  function pruneRecursive(node, targetQuality) {
-    if (!node || typeof node !== 'object') return { changed: false, selected: null };
+  function pruneRecursive(node, targetQuality, depth = 0, seen = new WeakSet()) {
+    if (!node || typeof node !== 'object' || depth > 8 || seen.has(node)) {
+      return { changed: false, selected: null };
+    }
+    seen.add(node);
     let anyChanged = false;
     let lastSelected = null;
 
@@ -97,11 +100,11 @@
       if (res.changed) { anyChanged = true; lastSelected = res.selected; }
     }
 
-    // Traverse arrays and child objects
+    // Traverse arrays and child objects with bounded depth
     for (const key of Object.keys(node)) {
       const child = node[key];
       if (child && typeof child === 'object') {
-        const sub = pruneRecursive(child, targetQuality);
+        const sub = pruneRecursive(child, targetQuality, depth + 1, seen);
         if (sub.changed) {
           anyChanged = true;
           if (sub.selected) lastSelected = sub.selected;

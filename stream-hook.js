@@ -97,9 +97,10 @@
         return 'dash';
       }
 
-      // TikTok video API endpoints and feed items
+      // TikTok video API endpoints and feed items (exclude generic /api/ telemetry, monitoring, or auth)
       if ((host.endsWith('tiktok.com') || host.endsWith('tiktokv.com')) &&
-          (href.includes('/api/') || href.includes('item_list') || href.includes('item/detail') || href.includes('feed'))) {
+          (href.includes('item_list') || href.includes('item/detail') || href.includes('/feed/') ||
+           href.includes('recommend') || href.includes('/post/'))) {
         return 'tiktok';
       }
 
@@ -113,12 +114,19 @@
     } catch (_) { return null; }
   }
 
+  let lastNotifiedCap = null;
   function notifyCapApplied(type, selectedQuality) {
-    try {
-      document.dispatchEvent(new CustomEvent('qg-cap-applied', {
-        detail: { type, quality: selectedQuality, time: Date.now() }
-      }));
-    } catch (_) {}
+    const key = `${type}:${selectedQuality}`;
+    if (lastNotifiedCap === key) return;
+    lastNotifiedCap = key;
+    // Dispatch asynchronously outside the current execution stack to prevent call-stack recursion
+    setTimeout(() => {
+      try {
+        document.dispatchEvent(new CustomEvent('qg-cap-applied', {
+          detail: { type, quality: selectedQuality, time: Date.now() }
+        }));
+      } catch (_) {}
+    }, 0);
   }
 
   function adapt(text, type) {
