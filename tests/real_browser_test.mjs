@@ -497,9 +497,41 @@ try {
   assert.equal(hardeningCheck.dynamicAutoplay, false, 'Newly created video elements must have autoplay=false');
   console.log('✓ TEST 13: Hardened early window.ytInitialPlayerResponse and dynamic video preload blocking verified');
 
+  // TEST 14: TikTok Container Quality Badge & Resolution Verification
+  await session.send('Page.navigate', { url: 'https://www.tiktok.com/@creator/video/123456' });
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    const isReady = await session.eval('document.readyState === "complete" && window.__qgStreamHook === true').catch(() => false);
+    if (isReady) break;
+  }
+
+  const tiktokPillCheck = await session.eval(`(() => {
+    const video = document.getElementById('test-video');
+    const container = document.getElementById('player-container');
+    container.className = 'xgplayer xgplayer-is-pc';
+    container.setAttribute('data-e2e', 'feed-video');
+
+    // Simulate stream cap applied
+    document.dispatchEvent(new CustomEvent('qg-cap-applied', {
+      detail: { quality: '540', fallbackLowest: true }
+    }));
+
+    const badge = container.querySelector('.qg-pill-badge');
+    return {
+      badgeExists: Boolean(badge),
+      inOuterContainer: badge ? badge.parentElement === container : false,
+      text: badge?.textContent || ''
+    };
+  })()`);
+
+  assert.equal(tiktokPillCheck.badgeExists, true, 'Badge must be created upon stream cap applied');
+  assert.equal(tiktokPillCheck.inOuterContainer, true, 'Badge must be mounted to the outer XGPlayer container');
+  assert.ok(tiktokPillCheck.text.includes('540p'), 'Badge text must reflect 540p stream');
+  console.log('✓ TEST 14: TikTok player container detection & 540p stream badge verified');
+
   session.close();
   console.log('\n=======================================================');
-  console.log('  ALL 13 REAL BROWSER INTEGRATION TESTS PASSED 100%');
+  console.log('  ALL 14 REAL BROWSER INTEGRATION TESTS PASSED 100%');
   console.log('=======================================================');
 
 } finally {

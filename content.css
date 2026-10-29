@@ -37,35 +37,52 @@
 /* Subtle on-video indicator pill that confirms stream resolution persistently */
 .qg-pill-badge {
   position: absolute !important;
-  top: 12px !important;
-  right: 12px !important;
-  z-index: 2147483590 !important;
+  top: 14px !important;
+  right: 14px !important;
+  z-index: 2147483640 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 5px !important;
-  background: rgba(16, 45, 44, 0.88) !important;
-  backdrop-filter: blur(4px) !important;
-  -webkit-backdrop-filter: blur(4px) !important;
-  border: 1px solid rgba(91, 225, 180, 0.5) !important;
+  background: rgba(16, 45, 44, 0.92) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+  border: 1px solid rgba(91, 225, 180, 0.55) !important;
   color: #7af8c3 !important;
   font-family: system-ui, -apple-system, sans-serif !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  padding: 4px 9px !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+  padding: 4px 10px !important;
   border-radius: 999px !important;
-  pointer-events: none !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
   user-select: none !important;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.35) !important;
-  opacity: 0.9 !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55) !important;
+  opacity: 0.95 !important;
   transform: translateY(0) !important;
-  transition: opacity 0.3s ease !important;
+  transition: opacity 0.3s ease, transform 0.15s ease, background 0.15s ease !important;
+}
+
+.qg-pill-badge:hover {
+  background: rgba(22, 60, 58, 0.98) !important;
+  transform: scale(1.04) !important;
+  opacity: 1 !important;
+}
+
+/* On TikTok, shift left to stay clear of the top-right options (...) menu */
+:root[data-qg-site="tiktok"] .qg-pill-badge,
+.qg-pill-badge.qg-tiktok {
+  right: 56px !important;
 }
 
 /* Distinct warm amber badge when server only provides HD (no lower stream available) */
 .qg-pill-badge.qg-pill-server-min {
-  background: rgba(45, 36, 16, 0.9) !important;
-  border-color: rgba(255, 193, 7, 0.55) !important;
+  background: rgba(45, 36, 16, 0.92) !important;
+  border-color: rgba(255, 193, 7, 0.6) !important;
   color: #ffd54f !important;
+}
+
+.qg-pill-badge.qg-pill-server-min:hover {
+  background: rgba(60, 48, 20, 0.98) !important;
 }
 
 /* Floating screen toast for quick keyboard shortcuts */
