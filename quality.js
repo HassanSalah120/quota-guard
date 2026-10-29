@@ -2,9 +2,12 @@
 (function (root) {
   'use strict';
   function parseResolution(label) {
-    const clean = String(label || '').replace(/\s+/g, ' ').trim();
-    // Accept "360p", "360p (recommended)", "360p • ..." but not random UI text.
-    const match = clean.match(/^(?:quality\s*[:=-]\s*)?(\d{3,4})\s*p\b/i);
+    const clean = String(label || '')
+      .replace(/[\u2022\u25CF\u2713\u2714\u25CB\u25C9•●✓✔]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Accept "360p", "● 360p", "✓ 360p", "Quality: 360p", "360p (recommended)", "360p • ..." but not random text.
+    const match = clean.match(/(?:^|\b)(?:quality\s*[:=-]\s*|الجودة\s*[:=-]\s*)?(\d{3,4})\s*p\b/i);
     return match ? Number(match[1]) : null;
   }
   function choose(options, preference) {

@@ -296,13 +296,22 @@
         const match = QuotaGuardQuality.parseResolution(choice.textContent || choice.getAttribute('aria-label'));
         choice.click();
         current.phase = 'done';
+        if (match) video.setAttribute('data-qg-player-quality', String(match));
         const applied = match ? `${match}p requested in player` : 'SD requested in player';
         document.documentElement?.setAttribute('data-qg-quality-applied', applied);
         // Dismiss menu so it does not linger over the video
         setTimeout(() => {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
           const closeBtn = document.querySelector('[aria-label*="close" i], [aria-label*="إغلاق" i]');
-          if (closeBtn && QuotaGuardPlayer.visible(closeBtn)) closeBtn.click();
-          else if (video && QuotaGuardPlayer.visible(video)) video.focus?.();
+          if (closeBtn && QuotaGuardPlayer.visible(closeBtn)) {
+            closeBtn.click();
+          } else {
+            const control = QuotaGuardPlayer.gear(video);
+            if (QuotaGuardPlayer.menuActions().length > 0 && control) {
+              control.click();
+            }
+          }
+          if (video && QuotaGuardPlayer.visible(video)) video.focus?.();
         }, 300);
         return;
       }
@@ -370,13 +379,35 @@
       return;
     }
 
-    if (res <= target) {
-      const label = `${res}p stream active • Bandwidth saved`;
+    // Check player-level or hook-level active quality confirmations
+    const playerQuality = QuotaGuardPlayer.activeResolution?.(video) ||
+      (video.getAttribute('data-qg-player-quality') ? Number(video.getAttribute('data-qg-player-quality')) : null);
+    const appliedQuality = document.documentElement?.getAttribute('data-qg-quality-applied') || '';
+    const isTargetApplied = appliedQuality.includes(`${target}p`) || appliedQuality.includes('SD requested') || appliedQuality.includes('SD stream');
+
+    // 1. Direct player confirmation (e.g. Facebook menu has 360p checked)
+    if (playerQuality && playerQuality <= target) {
+      const label = `${playerQuality}p stream active • Bandwidth saved`;
       document.documentElement?.setAttribute('data-qg-quality-applied', label);
       incrementStat('videosCapped', 18);
-      showPillBadge(video, `${res}p Saved`);
+      showPillBadge(video, `${playerQuality}p Saved`);
+      return;
+    }
+
+    // 2. Aspect-ratio aware calculation:
+    // Square (1:1, 720x720) or vertical (4:5, 576x720) videos on Facebook are encoded as SD streams labeled "360p".
+    // Normalize to 16:9 equivalent pixel height to avoid false "Server Min" badges on SD feeds.
+    const equivRes = Math.round(Math.sqrt((w * h) * (9 / 16)));
+    const effectiveRes = Math.min(res, equivRes);
+
+    if (res <= target || effectiveRes <= target || (isTargetApplied && res <= 720)) {
+      const displayRes = (res <= target) ? res : target;
+      const label = `${displayRes}p stream active • Bandwidth saved`;
+      document.documentElement?.setAttribute('data-qg-quality-applied', label);
+      incrementStat('videosCapped', 18);
+      showPillBadge(video, `${displayRes}p Saved`);
     } else {
-      // Video is playing at a higher resolution because the server provided no lower stream
+      // Truly higher resolution only when server provided no lower stream
       const label = `Playing ${res}p HD (Server single stream — no ${target}p available)`;
       document.documentElement?.setAttribute('data-qg-quality-applied', label);
       showPillBadge(video, `${res}p (Server Min)`);

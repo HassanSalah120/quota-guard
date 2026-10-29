@@ -49,5 +49,27 @@
       menuActions().map(el => ({el, label: label(el)})), target
     )?.el || null;
   }
-  root.QuotaGuardPlayer = {gear, menuActions, qualitySubmenuAction, resolutionAction, visible};
+  function activeResolution(video) {
+    for (const el of menuActions()) {
+      const isChecked = el.getAttribute('aria-checked') === 'true' ||
+                        el.getAttribute('aria-selected') === 'true' ||
+                        /[\u2022\u25CF\u2713\u2714\u25C9•●✓✔]/.test(el.textContent) ||
+                        el.querySelector?.('[aria-checked="true"], [aria-selected="true"]');
+      if (isChecked) {
+        const parsed = root.QuotaGuardQuality.parseResolution(label(el));
+        if (parsed) return parsed;
+      }
+    }
+    if (video) {
+      const saved = video.getAttribute('data-qg-player-quality');
+      if (saved) return Number(saved);
+      const control = gear(video);
+      if (control) {
+        const parsed = root.QuotaGuardQuality.parseResolution(label(control));
+        if (parsed) return parsed;
+      }
+    }
+    return null;
+  }
+  root.QuotaGuardPlayer = {gear, menuActions, qualitySubmenuAction, resolutionAction, activeResolution, visible};
 })(globalThis);

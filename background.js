@@ -266,5 +266,6 @@ if (chrome.webRequest?.onBeforeSendHeaders) {
 }
 
 if (!monitorTimer) {
+  tickSpeedMonitor();
   monitorTimer = setInterval(tickSpeedMonitor, 1000);
 }
