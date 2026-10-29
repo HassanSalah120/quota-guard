@@ -18,6 +18,11 @@
   padding: 0;
 }
 
+html {
+  background: var(--bg);
+  color-scheme: dark;
+}
+
 body {
   width: 350px;
   background: var(--bg);
@@ -54,9 +59,8 @@ header {
 .brand-icon {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
   display: block;
-  box-shadow: 0 0 10px rgba(78, 211, 166, 0.4);
+  filter: drop-shadow(0 0 6px rgba(78, 211, 166, 0.45));
 }
 
 .logo {

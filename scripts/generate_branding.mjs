@@ -11,107 +11,88 @@ const CDP_PORT = 9266;
 fs.mkdirSync(BRANDING_DIR, { recursive: true });
 fs.mkdirSync(ICONS_DIR, { recursive: true });
 
-// 1. Generate Master SVG Emblem (512x512)
+// 1. Master Free-Standing Shield Emblem (512x512) - 100% Transparent Canvas, No Outer Box/Frame
 const svgIcon = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Background Gradient -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0c201c"/>
-      <stop offset="50%" stop-color="#061614"/>
-      <stop offset="100%" stop-color="#030b0a"/>
-    </linearGradient>
-
-    <!-- Outer Frame Ring Gradient -->
-    <linearGradient id="frameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Outer Shield Border Gradient (Neon Emerald to Electric Cyan) -->
+    <linearGradient id="shieldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#4ed3a6"/>
       <stop offset="50%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
     </linearGradient>
 
-    <!-- Shield Border Gradient -->
-    <linearGradient id="shieldBorder" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#5eead4"/>
-      <stop offset="60%" stop-color="#38bdf8"/>
-      <stop offset="100%" stop-color="#0284c7"/>
-    </linearGradient>
-
-    <!-- Shield Fill Gradient -->
-    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#11332c"/>
-      <stop offset="60%" stop-color="#0a211c"/>
-      <stop offset="100%" stop-color="#04100e"/>
+    <!-- Shield Interior Fill Gradient (Deep Cyber Obsidian) -->
+    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f2e27"/>
+      <stop offset="50%" stop-color="#091c18"/>
+      <stop offset="100%" stop-color="#040e0c"/>
     </linearGradient>
 
     <!-- Lightning / Data Bolt Gradient -->
     <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#a7f3d0"/>
-      <stop offset="40%" stop-color="#4ed3a6"/>
+      <stop offset="45%" stop-color="#4ed3a6"/>
       <stop offset="100%" stop-color="#38bdf8"/>
     </linearGradient>
 
     <!-- Neon Glow Filter -->
     <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feGaussianBlur stdDeviation="8" result="blur"/>
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
 
-    <!-- Subtle Drop Shadow -->
-    <filter id="shadow" x="-15%" y="-15%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.6"/>
+    <!-- Soft Ambient Drop Shadow -->
+    <filter id="shieldShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.75"/>
     </filter>
   </defs>
 
-  <!-- Squircle Base Frame -->
-  <rect x="20" y="20" width="472" height="472" rx="120" fill="url(#bgGrad)" stroke="url(#frameGrad)" stroke-width="8" filter="url(#shadow)"/>
-
-  <!-- Radial Tech Accent Glow -->
-  <circle cx="256" cy="240" r="160" fill="#4ed3a6" opacity="0.06"/>
-
-  <!-- The Guard Shield -->
-  <path d="M 256 78 
-           C 335 78, 396 102, 400 134 
-           C 406 250, 335 368, 256 438 
-           C 177 368, 106 250, 112 134 
-           C 116 102, 177 78, 256 78 Z"
+  <!-- The Guard Shield (Hero Emblem) -->
+  <path d="M 256 36 
+           C 356 36, 444 68, 452 112 
+           C 460 265, 368 405, 256 480 
+           C 144 405, 52 265, 60 112 
+           C 68 68, 156 36, 256 36 Z"
         fill="url(#shieldFill)"
         stroke="url(#shieldBorder)"
-        stroke-width="16"
+        stroke-width="22"
         stroke-linejoin="round"
-        filter="url(#neonGlow)"/>
+        filter="url(#shieldShadow)"/>
 
-  <!-- Shield Inner Contour Accent -->
-  <path d="M 256 102 
-           C 320 102, 370 122, 374 148 
-           C 378 242, 320 340, 256 400 
-           C 192 340, 134 242, 138 148 
-           C 142 122, 192 102, 256 102 Z"
+  <!-- Inner Glowing Shield Rim -->
+  <path d="M 256 68 
+           C 336 68, 412 94, 418 132 
+           C 424 252, 348 370, 256 438 
+           C 164 370, 88 252, 94 132 
+           C 100 94, 176 68, 256 68 Z"
         fill="none"
-        stroke="rgba(78, 211, 166, 0.25)"
-        stroke-width="3"/>
+        stroke="rgba(78, 211, 166, 0.35)"
+        stroke-width="4"/>
 
   <!-- Telemetry Data Waves (Left & Right Saving Arcs) -->
-  <path d="M 160 200 A 75 75 0 0 0 160 270" fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-  <path d="M 180 216 A 50 50 0 0 0 180 254" fill="none" stroke="#4ed3a6" stroke-width="6" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 125 190 A 90 90 0 0 0 125 285" fill="none" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
+  <path d="M 152 210 A 60 60 0 0 0 152 265" fill="none" stroke="#4ed3a6" stroke-width="9" stroke-linecap="round" opacity="0.95"/>
 
-  <path d="M 352 200 A 75 75 0 0 1 352 270" fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-  <path d="M 332 216 A 50 50 0 0 1 332 254" fill="none" stroke="#4ed3a6" stroke-width="6" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 387 190 A 90 90 0 0 1 387 285" fill="none" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
+  <path d="M 360 210 A 60 60 0 0 1 360 265" fill="none" stroke="#4ed3a6" stroke-width="9" stroke-linecap="round" opacity="0.95"/>
 
   <!-- Dynamic Bandwidth Speed Bolt (Central Guard Energy) -->
-  <polygon points="274,136 194,256 248,256 222,376 322,236 264,236"
+  <polygon points="278,110 182,252 248,252 216,402 336,226 266,226"
            fill="url(#boltGrad)"
            filter="url(#neonGlow)"/>
 
   <!-- Modern Stylized 'Q' Tail Kick (Speed Arrow) -->
-  <path d="M 295 355 L 358 418 M 358 418 L 328 418 M 358 418 L 358 388"
+  <path d="M 305 380 L 388 456 M 388 456 L 350 456 M 388 456 L 388 418"
         fill="none"
         stroke="#4ed3a6"
-        stroke-width="12"
+        stroke-width="16"
         stroke-linecap="round"
-        stroke-linejoin="round"/>
+        stroke-linejoin="round"
+        filter="url(#neonGlow)"/>
 </svg>`;
 
-// 2. Generate Horizontal Logo with Wordmark (800x200)
+// 2. Horizontal Logo with Wordmark (800x200)
 const svgLogo = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200">
   <defs>
@@ -119,33 +100,27 @@ const svgLogo = `<?xml version="1.0" encoding="UTF-8"?>
       <stop offset="0%" stop-color="#081816"/>
       <stop offset="100%" stop-color="#040d0c"/>
     </linearGradient>
-    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="55%" stop-color="#f1f5f9"/>
-      <stop offset="56%" stop-color="#4ed3a6"/>
-      <stop offset="100%" stop-color="#38bdf8"/>
-    </linearGradient>
   </defs>
 
   <rect width="800" height="200" rx="24" fill="url(#logoBg)"/>
 
-  <!-- Embedded Scaled Icon (x: 32, y: 24, w: 152, h: 152) -->
-  <g transform="translate(32, 24) scale(0.296875)">
+  <!-- Embedded Scaled Free-Standing Shield Icon (x: 28, y: 16, w: 168, h: 168) -->
+  <g transform="translate(28, 16) scale(0.328125)">
     ${svgIcon.replace(/<\?xml.*?\?>/, '').replace(/<svg.*?>/, '').replace(/<\/svg>/, '')}
   </g>
 
   <!-- Typography: Wordmark -->
-  <text x="216" y="112" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="76" font-weight="900" letter-spacing="-1.5">
+  <text x="220" y="112" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="76" font-weight="900" letter-spacing="-1.5">
     <tspan fill="#ffffff">Quota</tspan><tspan fill="#4ed3a6">Guard</tspan>
   </text>
 
   <!-- Subtitle Tagline -->
-  <text x="220" y="152" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="700" fill="#7af8c3" letter-spacing="4">
+  <text x="224" y="152" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="700" fill="#7af8c3" letter-spacing="4">
     SMART VIDEO DATA SAVER &amp; RADIO MODE
   </text>
 </svg>`;
 
-// 3. Generate GitHub Social Preview Banner (1280x640)
+// 3. GitHub Social Preview Banner (1280x640)
 const svgBanner = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
   <defs>
@@ -167,53 +142,47 @@ const svgBanner = `<?xml version="1.0" encoding="UTF-8"?>
   <rect width="1280" height="640" fill="url(#grid)"/>
   <rect width="1280" height="640" fill="url(#centerGlow)"/>
 
-  <!-- Left Side: Large 280x280 Emblem -->
-  <g transform="translate(100, 180) scale(0.546875)">
+  <!-- Left Side: Large Free-Standing Shield Emblem -->
+  <g transform="translate(100, 160) scale(0.625)">
     ${svgIcon.replace(/<\?xml.*?\?>/, '').replace(/<svg.*?>/, '').replace(/<\/svg>/, '')}
   </g>
 
   <!-- Right Side: Content & Badges -->
-  <g transform="translate(430, 210)">
-    <!-- Brand Title -->
+  <g transform="translate(460, 210)">
     <text x="0" y="70" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="82" font-weight="900" letter-spacing="-2">
       <tspan fill="#ffffff">Quota</tspan><tspan fill="#4ed3a6">Guard</tspan>
     </text>
 
-    <!-- Tagline -->
     <text x="4" y="118" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="600" fill="#94a3b8">
       Smart Video Data Saver &amp; Radio Mode for Web Browsers
     </text>
 
-    <!-- Feature Pills -->
     <g transform="translate(4, 160)">
-      <!-- Pill 1: Platforms -->
       <rect x="0" y="0" width="300" height="44" rx="22" fill="#0d2b25" stroke="#22d3ee" stroke-width="1.5"/>
       <text x="150" y="28" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#5eead4" text-anchor="middle">
         YouTube • Facebook • X • TikTok
       </text>
 
-      <!-- Pill 2: Data Savings -->
       <rect x="315" y="0" width="220" height="44" rx="22" fill="#0d2b25" stroke="#4ed3a6" stroke-width="1.5"/>
       <text x="425" y="28" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#4ed3a6" text-anchor="middle">
         ⚡ Up to ~95% Data Saved
       </text>
     </g>
 
-    <!-- Secondary Line -->
     <text x="6" y="250" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#64748b" letter-spacing="1.5">
       PURE EXTENSION • ZERO LOGS • FIRST-PARTY HTML5 &amp; STREAM CONTROL
     </text>
   </g>
 </svg>`;
 
-// Write the SVG files exclusively to assets/branding/
+// Write master SVGs exclusively to assets/branding/
 fs.writeFileSync(path.join(BRANDING_DIR, 'quotaguard-icon.svg'), svgIcon, 'utf8');
 fs.writeFileSync(path.join(BRANDING_DIR, 'quotaguard-logo.svg'), svgLogo, 'utf8');
 fs.writeFileSync(path.join(BRANDING_DIR, 'quotaguard-banner.svg'), svgBanner, 'utf8');
 
-console.log('✓ Master vector SVGs created in assets/branding and icons/');
+console.log('✓ Master vector SVGs created in assets/branding/');
 
-// Render raster PNGs using Edge/Chromium
+// Render raster PNGs with TRUE ALPHA TRANSPARENCY (RGBA colorType: 6, ZERO white frame)
 const tempHtml = path.resolve('temp_render.html');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qg-branding-'));
 
@@ -279,14 +248,19 @@ async function renderPngs() {
     await session.ready();
     await session.send('Page.enable');
 
-    // Helper to capture SVG at specific dimension
+    // CRITICAL: Force transparent background on Chromium rendering pipeline
+    await session.send('Emulation.setDefaultBackgroundColorOverride', {
+      color: { r: 0, g: 0, b: 0, a: 0 }
+    });
+
+    // Helper to capture SVG at specific dimension with true RGBA transparency
     async function captureSvg(svgContent, width, height, outputPath) {
       const html = `<!DOCTYPE html>
 <html>
 <head>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: ${width}px; height: ${height}px; background: transparent; overflow: hidden; }
+    html, body { width: ${width}px; height: ${height}px; background: transparent !important; overflow: hidden; }
     svg { width: 100%; height: 100%; display: block; }
   </style>
 </head>
@@ -315,8 +289,8 @@ async function renderPngs() {
       fs.writeFileSync(outputPath, Buffer.from(screenshot.data, 'base64'));
     }
 
-    // Render extension icons
-    console.log('Rendering high-DPI icons...');
+    // Render pure transparent extension PNG icons
+    console.log('Rendering 100% transparent RGBA icons...');
     const sizes = [
       { size: 16, dest: [path.join(ICONS_DIR, 'icon16.png'), path.join(BRANDING_DIR, 'icon-16.png')] },
       { size: 32, dest: [path.join(ICONS_DIR, 'icon32.png'), path.join(BRANDING_DIR, 'icon-32.png')] },
@@ -329,7 +303,7 @@ async function renderPngs() {
     for (const item of sizes) {
       for (const destPath of item.dest) {
         await captureSvg(svgIcon, item.size, item.size, destPath);
-        console.log(`  ✓ ${path.relative('.', destPath)} (${item.size}×${item.size})`);
+        console.log(`  ✓ ${path.relative('.', destPath)} (${item.size}×${item.size} RGBA)`);
       }
     }
 
@@ -349,4 +323,4 @@ async function renderPngs() {
   }
 }
 
-renderPngs().then(() => console.log('\n🌟 Branding & icon asset generation completed successfully!')).catch(console.error);
+renderPngs().then(() => console.log('\n🌟 100% Transparent branding & icon asset generation completed successfully!')).catch(console.error);
