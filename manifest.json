@@ -1,0 +1,90 @@
+{
+  "manifest_version": 3,
+  "name": "QuotaGuard — Facebook, X, TikTok & YouTube Data Saver",
+  "version": "1.2.0",
+  "description": "Save video data on Facebook, X, TikTok, and YouTube with HLS/DASH/InnerTube stream quality caps, automatic player quality selection, and autoplay controls.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest",
+    "webRequest",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "action": {
+    "default_title": "QuotaGuard Data Saver",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://facebook.com/*",
+        "*://*.facebook.com/*",
+        "*://x.com/*",
+        "*://*.x.com/*",
+        "*://twitter.com/*",
+        "*://*.twitter.com/*",
+        "*://tiktok.com/*",
+        "*://*.tiktok.com/*",
+        "*://youtube.com/*",
+        "*://*.youtube.com/*",
+        "*://youtu.be/*"
+      ],
+      "js": [
+        "youtube-quality.js",
+        "tiktok-quality.js",
+        "hls-quality.js",
+        "dash-quality.js",
+        "stream-hook.js",
+        "main-guard.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://facebook.com/*",
+        "*://*.facebook.com/*",
+        "*://x.com/*",
+        "*://*.x.com/*",
+        "*://twitter.com/*",
+        "*://*.twitter.com/*",
+        "*://tiktok.com/*",
+        "*://*.tiktok.com/*",
+        "*://youtube.com/*",
+        "*://*.youtube.com/*",
+        "*://youtu.be/*"
+      ],
+      "js": [
+        "settings.js",
+        "quality.js",
+        "youtube-quality.js",
+        "tiktok-quality.js",
+        "hls-quality.js",
+        "dash-quality.js",
+        "player-quality.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

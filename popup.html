@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QuotaGuard</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="settings.js" defer></script>
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="brand-group">
+      <div class="logo" aria-hidden="true">Q</div>
+      <span class="brand-title">QuotaGuard</span>
+    </div>
+    <div class="header-status">
+      <span class="live-dot" aria-hidden="true"></span>
+      <span id="site-status" class="status-pill">Protected</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO TELEMETRY CARD -->
+    <section class="hero-card" aria-label="Network Throughput">
+      <div class="hero-header">
+        <span class="hero-label">LIVE NETWORK SPEED</span>
+        <div class="hero-live-badge">AUTO-METER</div>
+      </div>
+      <div class="hero-speeds">
+        <div class="speed-box">
+          <span class="arrow dl">↓</span>
+          <div>
+            <div class="speed-value tabular-num" id="meter-dl">0 KB/s</div>
+            <div class="speed-label">Download</div>
+          </div>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="speed-box">
+          <span class="arrow ul">↑</span>
+          <div>
+            <div class="speed-value tabular-num" id="meter-ul">0 KB/s</div>
+            <div class="speed-label">Upload</div>
+          </div>
+        </div>
+      </div>
+      <canvas id="speed-sparkline" width="316" height="26" class="sparkline-canvas"></canvas>
+      <div class="hero-stats">
+        <div class="stat-col">
+          <span class="stat-num tabular-num" id="stat-videos">0</span>
+          <span class="stat-lbl">Capped</span>
+        </div>
+        <div class="stat-sep"></div>
+        <div class="stat-col">
+          <span class="stat-num tabular-num" id="stat-autoplays">0</span>
+          <span class="stat-lbl">Autoplays Blocked</span>
+        </div>
+        <div class="stat-sep"></div>
+        <div class="stat-col">
+          <span class="stat-num tabular-num" id="stat-saved">~0 MB</span>
+          <span class="stat-lbl">Data Saved</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEGMENTED TABS -->
+    <div class="segmented-tabs" role="tablist" aria-label="Website Settings">
+      <button id="tab-facebook" type="button" role="tab" aria-selected="true" class="selected">
+        <span class="tab-icon">f</span> Facebook
+      </button>
+      <button id="tab-x" type="button" role="tab" aria-selected="false">
+        <span class="tab-icon">𝕏</span> X
+      </button>
+      <button id="tab-tiktok" type="button" role="tab" aria-selected="false">
+        <span class="tab-icon">♪</span> TikTok
+      </button>
+      <button id="tab-youtube" type="button" role="tab" aria-selected="false">
+        <span class="tab-icon">▶</span> YouTube
+      </button>
+    </div>
+
+    <!-- STREAM VERIFICATION BADGE -->
+    <div class="stream-status-box" id="quality-verification" role="status">
+      Stream status: checking active tab...
+    </div>
+
+    <!-- CONTROLS CARD -->
+    <section class="controls-card">
+      <label class="setting main-toggle">
+        <div class="toggle-text">
+          <strong>Enable Data Saving</strong>
+          <small><span id="site-title">Facebook</span> active protection</small>
+        </div>
+        <input type="checkbox" data-setting="enabled" aria-label="Enable data saving">
+        <span class="switch-ui" aria-hidden="true"></span>
+      </label>
+
+      <div id="regular-controls">
+        <div class="select-group">
+          <div class="select-row">
+            <label for="quality"><strong>Target Stream Quality</strong></label>
+            <button class="native-link-inline" type="button" id="native-settings">Site Media Settings ↗</button>
+          </div>
+          <div class="select-wrapper">
+            <select id="quality" data-setting="quality">
+              <option value="audio" id="opt-radio">📻 Radio Mode • Sound only (~95% less data)</option>
+              <option value="240">240p • Maximum saving (~75% less data)</option>
+              <option value="360">360p • Recommended (~50% less data)</option>
+              <option value="480">480p • Balanced (~30% less data)</option>
+              <option value="auto">Use site default (No cap)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="toggles-grid">
+          <label class="setting compact">
+            <div class="toggle-text">
+              <strong>Stop Autoplay</strong>
+              <small>Click to play</small>
+            </div>
+            <input type="checkbox" data-setting="stopAutoplay">
+            <span class="switch-ui" aria-hidden="true"></span>
+          </label>
+
+          <label class="setting compact">
+            <div class="toggle-text">
+              <strong>Block Preload</strong>
+              <small>No background chunks</small>
+            </div>
+            <input type="checkbox" data-setting="preventPreload">
+            <span class="switch-ui" aria-hidden="true"></span>
+          </label>
+
+          <label class="setting compact">
+            <div class="toggle-text">
+              <strong>Pause Offscreen</strong>
+              <small>Pause when scrolled past</small>
+            </div>
+            <input type="checkbox" data-setting="pauseOffscreen">
+            <span class="switch-ui" aria-hidden="true"></span>
+          </label>
+
+          <label class="setting compact strict-setting">
+            <div class="toggle-text">
+              <strong>Strict Block</strong>
+              <small>Halt video CDN</small>
+            </div>
+            <input type="checkbox" data-setting="strictBlock">
+            <span class="switch-ui strict" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <div class="native-note" id="native-tip">
+      For Reels: set <b>Video Default Quality → SD Only</b> in account settings to prioritize server SD.
+    </div>
+
+    <div class="save-status" id="saved" aria-live="polite">Settings saved automatically</div>
+  </main>
+</body>
+</html>

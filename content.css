@@ -1,0 +1,94 @@
+.qg-play-chip {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 2147483600 !important;
+  width: auto !important;
+  max-width: calc(100% - 40px) !important;
+  border: 1px solid rgba(112, 241, 204, 0.45) !important;
+  border-radius: 999px !important;
+  padding: 12px 20px !important;
+  background: rgba(16, 45, 44, 0.95) !important;
+  color: #f0fffc !important;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.65) !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 750 !important;
+  line-height: 1.1 !important;
+  text-transform: none !important;
+  cursor: pointer !important;
+  opacity: .98 !important;
+  pointer-events: auto !important;
+  backdrop-filter: blur(8px) !important;
+  transition: transform 0.15s ease, background 0.15s ease !important;
+}
+.qg-play-chip:hover {
+  background: #1d4e46 !important;
+  transform: translate(-50%, -50%) scale(1.04) !important;
+}
+.qg-play-chip:focus-visible { outline: 3px solid #70f1cc !important; }
+
+/* Subtle on-video indicator pill that confirms stream resolution persistently */
+.qg-pill-badge {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 2147483590 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  background: rgba(16, 45, 44, 0.88) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(91, 225, 180, 0.5) !important;
+  color: #7af8c3 !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 4px 9px !important;
+  border-radius: 999px !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.35) !important;
+  opacity: 0.9 !important;
+  transform: translateY(0) !important;
+  transition: opacity 0.3s ease !important;
+}
+
+/* Distinct warm amber badge when server only provides HD (no lower stream available) */
+.qg-pill-badge.qg-pill-server-min {
+  background: rgba(45, 36, 16, 0.9) !important;
+  border-color: rgba(255, 193, 7, 0.55) !important;
+  color: #ffd54f !important;
+}
+
+/* Floating screen toast for quick keyboard shortcuts */
+.qg-toast {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  z-index: 2147483647 !important;
+  background: #102d2c !important;
+  color: #7af8c3 !important;
+  border: 1px solid #3d7e65 !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.45) !important;
+  border-radius: 10px !important;
+  padding: 10px 16px !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  pointer-events: none !important;
+  transition: opacity 0.35s ease, transform 0.35s ease !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+.qg-toast.qg-fade {
+  opacity: 0 !important;
+  transform: translateY(10px) !important;
+}
