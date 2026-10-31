@@ -3,247 +3,178 @@
   let active = 'facebook';
   let config = QuotaGuard.normalize();
   let stats = QuotaGuard.normalizeStats();
-
+  let verificationRequest = 0;
+  let loaded = false;
+  const $ = id => document.getElementById(id);
   const controls = [...document.querySelectorAll('[data-setting]')];
-  const tabs = {
-    facebook: document.getElementById('tab-facebook'),
-    x: document.getElementById('tab-x'),
-    tiktok: document.getElementById('tab-tiktok'),
-    youtube: document.getElementById('tab-youtube')
+  const sites = Object.keys(QuotaGuard.SITE_NAMES);
+  const tabs = sites.map(site => $('tab-' + site));
+  const qualityLabels = {
+    240: '240p · Maximum saving', 360: '360p · Recommended', 480: '480p · Balanced',
+    540: '540p · Lower quality', 720: '720p · Balanced',
+    audio: 'Audio only · Radio mode', auto: 'Site default · No cap'
   };
-  const status = document.getElementById('site-status');
-  const tip = document.getElementById('native-tip');
-  const saved = document.getElementById('saved');
-  const verifier = document.getElementById('quality-verification');
-  const sparklineCanvas = document.getElementById('speed-sparkline');
-  let localSpeedHistory = [];
-
+  const tips = {
+    facebook: 'For Reels, the site’s SD preference can help. Available streams vary by video.',
+    x: 'The cap filters stream choices. Some videos offer only one quality.',
+    tiktok: 'Available qualities vary by video. When none meets your target, the lowest offered stream is kept.',
+    youtube: 'Audio only applies to intercepted player responses. Reload the video after changing this mode.'
+  };
+  function text(id, value) { if ($(id).textContent !== String(value)) $(id).textContent = value; }
+  function setStatus(state, title, detail, reading = {}) {
+    $('site-status').dataset.state = state;
+    text('site-status', ({off: 'Off', blocked: 'Blocked', verified: 'Verified', above: 'Above cap', requested: 'Requested', default: 'Site default', reload: 'Reconnect'})[state] || 'Ready');
+    $('stream-state').dataset.state = state;
+    const headlines = {verified: 'Playing within your limit', above: 'Playing above your limit', requested: 'Audio only requested', default: 'Site controls the quality'};
+    const summaries = {verified: 'The current stream meets your setting.', above: 'A reload may help. Lower qualities depend on the video.', requested: 'Reload the video to apply audio only.', default: 'Your other enabled controls still apply.'};
+    text('quality-verification', headlines[state] || title);
+    text('stream-detail', summaries[state] || detail);
+    text('stream-explanation', detail);
+    text('actual-quality', reading.actualResolution ? reading.actualResolution + 'p' : '—');
+    const target = config[active].quality;
+    text('target-quality', target === 'audio' ? 'Audio' : target === 'auto' ? 'Auto' : target + 'p');
+    const media = reading.mediaSize;
+    text('media-label', media?.kind === 'buffered' ? 'Buffered media' : 'Video size');
+    text('media-value', media ? QuotaGuardQuality.formatMediaBytes(media.bytes) : 'Not reported');
+    $('media-value').title = detail;
+  }
+  function saveStatus(message, error = false) {
+    text('saved', message);
+    $('saved').dataset.error = String(error);
+  }
   function renderStats() {
-    const s = stats[active] || QuotaGuard.DEFAULT_STATS;
-    const vEl = document.getElementById('stat-videos');
-    const aEl = document.getElementById('stat-autoplays');
-    const sEl = document.getElementById('stat-saved');
-    if (vEl) vEl.textContent = s.videosCapped || 0;
-    if (aEl) aEl.textContent = s.autoplaysBlocked || 0;
-    if (sEl) {
-      const mb = Math.round(s.mbSavedEst || 0);
-      sEl.textContent = mb >= 1024 ? `~${(mb / 1024).toFixed(1)} GB` : `~${mb} MB`;
-    }
+    text('stat-videos', stats[active].videosCapped);
+    text('stat-autoplays', stats[active].autoplaysBlocked);
   }
-
-  function drawSparkline(canvas, history) {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    if (!history || history.length < 2) {
-      ctx.strokeStyle = 'rgba(78, 211, 166, 0.25)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(0, h - 3);
-      ctx.lineTo(w, h - 3);
-      ctx.stroke();
-      return;
-    }
-
-    const maxVal = Math.max(...history.map(pt => pt.dl || 0), 1024 * 60);
-    const step = w / (history.length - 1);
-
-    ctx.beginPath();
-    history.forEach((pt, idx) => {
-      const val = pt.dl || 0;
-      const x = idx * step;
-      const y = h - 3 - Math.min(h - 6, (val / maxVal) * (h - 6));
-      if (idx === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-
-    ctx.strokeStyle = '#4ed3a6';
-    ctx.lineWidth = 1.8;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-
-    ctx.lineTo(w, h);
-    ctx.lineTo(0, h);
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, 'rgba(78, 211, 166, 0.35)');
-    grad.addColorStop(1, 'rgba(78, 211, 166, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.fill();
-  }
-
-  function render() {
-    const data = config[active];
-    const siteTitleEl = document.getElementById('site-title');
-    if (siteTitleEl) siteTitleEl.textContent = QuotaGuard.SITE_NAMES[active];
-
-    const supportsRadio = active === 'youtube' || active === 'facebook';
-    const optRadio = document.getElementById('opt-radio');
-    if (optRadio) {
-      optRadio.hidden = !supportsRadio;
-      optRadio.disabled = !supportsRadio;
-    }
-    if (!supportsRadio && data.quality === 'audio') {
-      data.quality = '360';
-    }
-
-    // TikTok-specific stream labeling: TikTok only encodes down to 540p on its servers
-    const opt240 = document.querySelector('#quality option[value="240"]');
-    const opt360 = document.querySelector('#quality option[value="360"]');
-    const opt480 = document.querySelector('#quality option[value="480"]');
-    const tiktokTip = document.getElementById('tiktok-tip');
-    if (tiktokTip) tiktokTip.style.display = active === 'tiktok' ? 'block' : 'none';
-
-    if (active === 'tiktok') {
-      if (opt240) opt240.hidden = true;
-      if (opt360) opt360.textContent = '540p • Lowest available on TikTok (~75% less data)';
-      if (opt480) opt480.textContent = '720p • Balanced HD (~40% less data)';
-    } else {
-      if (opt240) {
-        opt240.hidden = false;
-        opt240.textContent = '240p • Maximum saving (~75% less data)';
-      }
-      if (opt360) opt360.textContent = '360p • Recommended (~50% less data)';
-      if (opt480) opt480.textContent = '480p • Balanced (~30% less data)';
-    }
-
-    async function updateQualityVerification() {
-      if (!verifier) return;
-      verifier.textContent = 'Stream status: checking active tab...';
-      const currentSite = active;
-      try {
-        const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-        if (!tab || !tab.url || QuotaGuard.siteForHost(new URL(tab.url).hostname) !== currentSite) {
-          verifier.textContent = `Open a ${QuotaGuard.SITE_NAMES[active]} tab to verify live resolution.`;
-          return;
-        }
-        const result = await chrome.tabs.sendMessage(tab.id, {type:'qg-status'});
-        if (active === currentSite) {
-          const capSetting = data.quality === 'audio'
-            ? 'Radio Mode'
-            : (data.quality === 'auto' ? 'Default' : data.quality + 'p');
-          verifier.textContent = result?.quality
-            ? 'Stream status: ' + result.quality
-            : `Active: ${capSetting} Cap Armed. Play any video to verify.`;
-        }
-      } catch (_) {
-        if (active === currentSite) verifier.textContent = 'Stream status: reload tab to verify active stream.';
-      }
-    }
-
-    for (const [site, button] of Object.entries(tabs)) {
-      if (button) {
-        button.classList.toggle('selected', site === active);
-        button.setAttribute('aria-selected', String(site === active));
-      }
-    }
-
-    for (const input of controls) {
-      const key = input.dataset.setting;
-      if (input.type === 'checkbox') input.checked = Boolean(data[key]);
-      else input.value = data[key];
-    }
-
-    const regControls = document.getElementById('regular-controls');
-    if (regControls) regControls.classList.toggle('disabled', !data.enabled);
-
-    if (status) {
-      status.className = `status-pill${!data.enabled ? ' off' : data.strictBlock ? ' strict' : ''}`;
-      status.textContent = !data.enabled ? 'Off' : data.strictBlock ? 'Strict block' : 'Protected';
-    }
-
-    renderStats();
-    updateQualityVerification();
-
-    if (tip) {
-      if (active === 'facebook') {
-        tip.innerHTML = 'For Facebook Reels: set <b>Video Default Quality → SD Only</b> in settings. Supports <b>Radio Mode</b> (sound only).';
-      } else if (active === 'x') {
-        tip.innerHTML = 'X HLS streams are capped to low-bitrate variants. Press <b>Alt + Q</b> on the page to cycle quality anytime.';
-      } else if (active === 'tiktok') {
-        tip.innerHTML = 'TikTok feeds are capped via XGPlayer bitrate adaptation. Offscreen videos pause automatically to save bandwidth.';
-      } else {
-        tip.innerHTML = 'YouTube supports <b>Radio Mode</b> (sound only, zero video chunks) and resolution caps. Press <b>Alt + Q</b> to cycle.';
-      }
-    }
-  }
-
-  for (const [site, button] of Object.entries(tabs)) {
-    if (button) {
-      button.addEventListener('click', () => { active = site; render(); });
-    }
-  }
-
-  for (const input of controls) {
-    input.addEventListener('change', async () => {
-      const key = input.dataset.setting;
-      config[active][key] = input.type === 'checkbox' ? input.checked : input.value;
-      render();
-      try {
-        await chrome.storage.local.set({settings: config});
-        if (saved) saved.textContent = '✓ Saved — refresh site if needed';
-      } catch (error) {
-        if (saved) saved.textContent = 'Could not save settings: ' + error.message;
-      }
-    });
-  }
-
-  const nativeSettingsBtn = document.getElementById('native-settings');
-  if (nativeSettingsBtn) {
-    nativeSettingsBtn.addEventListener('click', () => {
-      let url = 'https://www.facebook.com/settings/?tab=videos';
-      if (active === 'x') url = 'https://x.com/settings/data';
-      else if (active === 'tiktok') url = 'https://www.tiktok.com/setting';
-      else if (active === 'youtube') url = 'https://www.youtube.com/account_playback';
-      chrome.tabs.create({url});
-    });
-  }
-
-  chrome.storage.local.get(['settings', 'stats']).then(async data => {
-    config = QuotaGuard.normalize(data.settings);
-    stats = QuotaGuard.normalizeStats(data.stats);
+  async function verify() {
+    const request = ++verificationRequest;
+    const site = active;
+    const setting = {...config[site]};
+    if (!loaded) return;
+    if (!setting.enabled) { setStatus('off', 'Data saving is off', 'This site uses its own playback settings.'); return; }
+    if (setting.strictBlock) { setStatus('blocked', 'All video requests blocked', 'Turn off “Block all video” to watch again.'); return; }
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-      if (tab?.url) {
-        const detected = QuotaGuard.siteForHost(new URL(tab.url).hostname);
-        if (detected) active = detected;
+      if (request !== verificationRequest) return;
+      if (!tab?.url || QuotaGuard.siteForHost(new URL(tab.url).hostname) !== site) {
+        setStatus('ready', 'Ready for ' + QuotaGuard.SITE_NAMES[site], 'Open this site to verify playback.');
+        return;
       }
-    } catch (_) {}
+      const result = await chrome.tabs.sendMessage(tab.id, {type: 'qg-status'});
+      if (request !== verificationRequest) return;
+      if (!result || result.requestedQuality !== setting.quality || result.enabled !== setting.enabled) {
+        setStatus('ready', 'Applying your settings', 'Playback already buffered may need a reload.');
+        return;
+      }
+      let detail = result.state === 'verified' ? 'The playing video is at or below your selected ceiling.'
+        : result.state === 'above' ? 'This video is above your ceiling. A lower stream may be unavailable, or already buffered.'
+        : result.state === 'requested' ? 'Audio only is requested. Reload the video to apply it; audio-only transfer is not verified.'
+        : result.state === 'default' ? 'The website chooses playback quality. Other enabled controls still apply.'
+        : 'Your settings are ready. Start a video to verify its quality.';
+      if (result.state === 'above') {
+        detail += result.mediaSize ? ` ${result.mediaSize.label}. ` + (result.mediaSize.kind === 'total' ? 'Server-reported resource size, not bytes downloaded.' : 'Bytes supplied to this player’s audio/video buffers, including reused data. Not network usage or a full file size.') : ' The full media size is unavailable. No estimate is shown.';
+      }
+      setStatus(result.state, result.quality, detail, result);
+    } catch (_) {
+      if (request === verificationRequest) setStatus('reload', 'Reload this tab to connect', 'Settings are saved. Refresh the website to activate this extension.');
+    }
+  }
+  function render() {
+    const setting = config[active];
+    const capability = QuotaGuard.CAPABILITIES[active];
+    tabs.forEach((tab, index) => {
+      const selected = sites[index] === active;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    $('site-panel').setAttribute('aria-labelledby', 'tab-' + active);
+    text('site-title', QuotaGuard.SITE_NAMES[active]);
+    text('site-description', setting.enabled ? 'Data saving enabled' : 'Data saving paused');
+    $('quality').replaceChildren(...QuotaGuard.QUALITY_OPTIONS[active].map(value => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = qualityLabels[value];
+      return option;
+    }));
+    for (const input of controls) {
+      const key = input.dataset.setting;
+      const unsupported = !capability.playbackControls && ['stopAutoplay', 'preventPreload', 'pauseOffscreen'].includes(key);
+      if (input.type === 'checkbox') input.checked = unsupported ? false : setting[key];
+      else input.value = setting[key];
+      input.disabled = !loaded || unsupported || (key !== 'enabled' && (!setting.enabled || (setting.strictBlock && key !== 'strictBlock')));
+      input.title = unsupported ? 'Managed by YouTube' : '';
+    }
+    $('regular-controls').disabled = !loaded || !setting.enabled;
+    $('capability-note').hidden = capability.playbackControls;
+    text('quality-help', setting.quality === 'audio' ? 'Audio only where supported. Reload the video to apply.' : 'A ceiling when a lower stream is available.');
+    text('native-tip', tips[active]);
+    renderStats();
+    verify();
+  }
+  function selectSite(index, focus = false) {
+    active = sites[index];
     render();
-  }).catch(error => {
-    if (saved) saved.textContent = error.message;
+    if (focus) tabs[index].focus();
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => selectSite(index));
+    tab.addEventListener('keydown', event => {
+      let next;
+      if (event.key === 'ArrowRight') next = (index + 1) % sites.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + sites.length) % sites.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = sites.length - 1;
+      else return;
+      event.preventDefault();
+      selectSite(next, true);
+    });
   });
-
-  function formatBytesPerSec(bytes) {
-    if (!bytes || bytes < 1024) return `${Math.round(bytes || 0)} B/s`;
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} KB/s`;
-    const mb = kb / 1024;
-    return `${mb.toFixed(2)} MB/s`;
-  }
-
-  function updateLiveSpeed() {
-    chrome.storage.local.get('liveSpeed').then(data => {
-      const s = data.liveSpeed;
-      const dlEl = document.getElementById('meter-dl');
-      const ulEl = document.getElementById('meter-ul');
-      if (dlEl && s) dlEl.textContent = formatBytesPerSec(s.dl);
-      if (ulEl && s) ulEl.textContent = formatBytesPerSec(s.ul);
-
-      if (s?.history && Array.isArray(s.history) && s.history.length > 0) {
-        drawSparkline(sparklineCanvas, s.history);
-      } else if (s) {
-        localSpeedHistory.push({ dl: s.dl || 0, ul: s.ul || 0 });
-        if (localSpeedHistory.length > 20) localSpeedHistory.shift();
-        drawSparkline(sparklineCanvas, localSpeedHistory);
+  for (const input of controls) {
+    input.addEventListener('change', async () => {
+      const site = active;
+      const key = input.dataset.setting;
+      const value = input.type === 'checkbox' ? input.checked : input.value;
+      config[site][key] = value;
+      saveStatus('Saving…');
+      render();
+      try {
+        const result = await chrome.runtime.sendMessage({type: 'qg-setting', site, key, value});
+        if (!result?.ok) throw new Error('Save failed');
+        saveStatus('Saved · Applies to new playback');
+        verify();
+      } catch (_) {
+        const stored = await chrome.storage.local.get('settings').catch(() => ({}));
+        config = QuotaGuard.normalize(stored.settings);
+        render();
+        saveStatus('Could not save. Try again.', true);
       }
-    }).catch(() => {});
+    });
   }
-
-  updateLiveSpeed();
-  const speedInterval = setInterval(updateLiveSpeed, 1000);
-  window.addEventListener('unload', () => clearInterval(speedInterval));
+  $('native-settings').addEventListener('click', () => {
+    const urls = {
+      facebook: 'https://www.facebook.com/settings/?tab=videos',
+      x: 'https://x.com/settings/data', tiktok: 'https://www.tiktok.com/setting',
+      youtube: 'https://www.youtube.com/account_playback'
+    };
+    chrome.tabs.create({url: urls[active]});
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.settings) { config = QuotaGuard.normalize(changes.settings.newValue); render(); }
+    if (changes.activity) { stats = QuotaGuard.normalizeStats(changes.activity.newValue); renderStats(); }
+  });
+  render();
+  chrome.storage.local.get(['settings', 'activity']).then(async stored => {
+    config = QuotaGuard.normalize(stored.settings);
+    stats = QuotaGuard.normalizeStats(stored.activity);
+    try {
+      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      const detected = tab?.url && QuotaGuard.siteForHost(new URL(tab.url).hostname);
+      if (detected) active = detected;
+    } catch (_) {}
+    loaded = true;
+    render();
+  }).catch(() => saveStatus('Could not load settings. Reopen this popup.', true));
+  const timer = setInterval(verify, 2000);
+  window.addEventListener('pagehide', () => clearInterval(timer), {once: true});
 })();

@@ -26,6 +26,8 @@ assert.equal(result.selected,360);
 present(result, ['/pu/pl/360x640.m3u8']);
 result=limit(manifest,'240'); assert.equal(result.selected,180); present(result,['/pu/pl/180x320.m3u8']);
 result=limit(manifest,'480'); assert.equal(result.selected,360); present(result,['/pu/pl/360x640.m3u8']);
+result=limit(manifest,'540'); assert.equal(result.selected,360); present(result,['/pu/pl/360x640.m3u8']);
+result=limit(manifest,'720'); assert.equal(result.selected,720); present(result,['/pu/pl/720x1280.m3u8']);
 result=limit(manifest,'auto'); assert.equal(result.changed,false); assert.equal(result.text,manifest);
 result=limit('#EXTM3U\n#EXTINF:3,\nsegment.ts\n','360'); assert.equal(result.changed,false);
 const landscape=manifest.replaceAll('180x320','320x180').replaceAll('360x640','640x360').replaceAll('720x1280','1280x720');

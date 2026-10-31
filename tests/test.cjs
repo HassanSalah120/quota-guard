@@ -27,11 +27,17 @@ assert.equal(Q.normalize().facebook.stopAutoplay, true);
 assert.equal(Q.normalize().tiktok.stopAutoplay, true);
 assert.equal(Q.normalize().youtube.stopAutoplay, true);
 assert.equal(Q.normalize({youtube: {quality: '240'}}).youtube.quality, '240');
-assert.equal(Q.normalize({tiktok: {quality: '240'}}).tiktok.quality, '240');
+assert.equal(Q.normalize({tiktok: {quality: '240'}}).tiktok.quality, '540');
+assert.equal(Q.normalize({tiktok: {quality: '480'}}).tiktok.quality, '720');
+assert.equal(Q.normalize({x: {quality: 'audio'}}).x.quality, '360');
+assert.equal(Q.normalize({facebook: {enabled: 'false'}}).facebook.enabled, true);
 assert.equal(Q.normalize({facebook: {quality: '240'}}).facebook.quality, '240');
 assert.equal(Q.normalizeStats().facebook.videosCapped, 0);
 assert.equal(Q.normalizeStats({x: {videosCapped: 5, mbSavedEst: 90}}).x.videosCapped, 5);
-assert.equal(Q.normalizeStats({x: {videosCapped: 5, mbSavedEst: 90}}).x.mbSavedEst, 90);
+assert.equal(Q.normalizeStats({x: {videosCapped: 5, mbSavedEst: 90}}).x.mbSavedEst, undefined);
+assert.equal(Q.normalizeStats({x: {videosCapped: -1}}).x.videosCapped, 0);
+assert.equal(V.formatMediaBytes(1500000), '1.50 MB');
+assert.equal(V.formatMediaBytes(12000), '12.0 KB');
 assert.equal(V.parseResolution('360p'), 360);
 assert.equal(V.parseResolution('● 360p'), 360);
 assert.equal(V.parseResolution('• 360p'), 360);
@@ -48,6 +54,7 @@ assert.equal(V.choose([{label: 'SD only'}, {label: 'HD'}], '360').label, 'SD onl
 assert.equal(V.choose([{label: '240p'}, {label: '360p'}], 'auto'), null);
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
 assert.equal(m.manifest_version, 3);
+assert.ok(!m.host_permissions.includes('*://*/*'));
 for (const rule of m.content_scripts) {
   for (const file of (rule.js || []).concat(rule.css || [])) {
     assert(fs.existsSync(path.join(dir, file)), `Missing file: ${file}`);

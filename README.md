@@ -1,188 +1,61 @@
-<p align="center">
-  <img src="assets/branding/quotaguard-banner.png" alt="QuotaGuard Banner" width="100%" style="max-width: 860px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);" />
-</p>
+# QuotaGuard
 
-<p align="center">
-  <b>Smart Video Data Saver & Radio Mode for YouTube, Facebook, X (Twitter), and TikTok</b><br />
-  Save 50% to 95% of your internet bandwidth on metered hotspots, limited mobile plans, and slow connections.
-</p>
+A Chromium Manifest V3 extension for saving video data on Facebook, X, TikTok, and YouTube. Version 1.3.1.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Manifest-V3-success?style=flat-square&color=4ed3a6" alt="Manifest V3" />
-  <img src="https://img.shields.io/badge/Release-v1.2.2-blue?style=flat-square&color=38bdf8" alt="v1.2.2" />
-  <img src="https://img.shields.io/badge/Tests-14%2F14%20Passing%20(100%25)-success?style=flat-square&color=38bdf8" alt="Tests 100%" />
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License MIT" />
-  <img src="https://img.shields.io/badge/Platform-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera-lightgrey?style=flat-square" alt="Browsers" />
-</p>
+## What it does
 
-<p align="center">
-  <a href="https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.2/quota-guard-v1.2.2.zip">
-    <img src="https://img.shields.io/badge/📦_Download_QuotaGuard-v1.2.2_(.ZIP)-4ed3a6?style=for-the-badge&logo=github&logoColor=white" alt="Download QuotaGuard .ZIP" />
-  </a>
-</p>
+- Filters supported HLS, DASH, YouTube player, and TikTok bitrate responses before the player selects a stream.
+- Offers per-site quality ceilings, audio-only requests on Facebook/YouTube, and an emergency video-request block.
+- Controls autoplay, preloading, and offscreen playback on Facebook, X, and TikTok. YouTube keeps control of its own playback lifecycle; these three switches are disabled there.
+- Shows actual decoded resolution separately from the requested ceiling. A player above target is reported honestly, even if a manifest was filtered successfully.
+- Provides a compact quality chip near the bottom-right of the player on hover or keyboard focus. The charcoal popup opens at 400px wide and separates actual quality from the requested ceiling. Click it or press Alt+Q to cycle the available settings for that site.
+- Counts video sources observed playing within their ceiling and sources whose autoplay was stopped. Each element/source is counted once per page, even across playback loops and page mutations. Counts are saved locally and shared safely across tabs.
 
----
+## Media size: measured values only
 
-## 📸 Screenshots
+When a video is above target, the indicator can show:
 
-<p align="center">
-  <img src="assets/screenshots/popup-dashboard.png" alt="QuotaGuard Popup Dashboard" width="340" style="border-radius: 10px; margin: 6px;" />
-  <img src="assets/screenshots/popup-radio-mode.png" alt="Radio Mode Selection" width="340" style="border-radius: 10px; margin: 6px;" />
-</p>
+- **`1.50 MB total`**: the full media resource size reported by its server through `Content-Length` (a full response) or the total in `Content-Range` (a partial response). This is the resource size, not downloaded bytes. A partial response’s length is never mistaken for the total.
+- **`1.50 MB buffered`**: cumulative bytes supplied successfully to this video’s MediaSource audio/video buffers. Includes data supplied again after a seek or reuse; excludes transport overhead. This is neither the full video size nor an internet-usage meter.
+- **`Size unavailable`**: neither measurement can be attributed to this video. Worker-owned MediaSource instances, some player implementations, missing headers, and unsupported media hosts can prevent measurement.
 
-<p align="center">
-  <em>Left: Live telemetry hero card with rolling sparkline graph. Right: YouTube Radio Mode (Sound Only) active.</em>
-</p>
+The tooltip and popup explain the measurement. MB means 1,000,000 bytes. There are no bitrate-based guesses, speculative savings totals, background downloads to discover size, or extra fetches of video data.
 
-<p align="center">
-  <img src="assets/screenshots/on-video-pill.png" alt="On-Video Stream Badge" width="620" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
-</p>
-<p align="center">
-  <em>Persistent on-video badge confirms real stream caps during playback without fading away.</em>
-</p>
+The extension reads headers using [Chrome webRequest](https://developer.chrome.com/docs/extensions/reference/api/webRequest) and observes the player’s existing [MediaSource append operations](https://www.w3.org/TR/media-source-2/#dom-sourcebuffer-appendbuffer).
 
----
+## Facebook Reel navigation
 
-## 🌟 Key Features
+The extension never opens or clicks Facebook player menus, Close buttons, or quality choices. Quality is applied through stream responses. A trusted click on a same-origin Reel link can authorize the newly mounted modal video once; unrelated feed autoplay remains blocked.
 
-### 📻 Radio Mode (Sound Only)
-- **Zero Video Chunks Downloaded**: On supported platforms (**YouTube** and **Facebook DASH**), QuotaGuard isolates and serves only the pure audio stream, saving **up to 95% of data** (~64–128 kbps vs 1.5–4 Mbps).
-- **Player & Video Visible**: Unlike basic scriptlets that merely hide the video using CSS `display: none` (which still downloads full video chunks in the background), QuotaGuard modifies network stream manifests so the browser downloads **only audio bytes** while the player interface, progress bar, play/pause, and comments remain completely visible and interactive.
-- **Fail-Safe Platform Detection**: Automatically ignored on platforms that only deliver multiplexed video+audio streams (X and TikTok) to guarantee zero stream breakage.
+## Quality limits and audio only
 
-### ⚡ True Stream-Level Quality Capping
-- **YouTube**: Prunes high-resolution video formats from InnerTube's `/youtubei/v1/player` endpoint (`adaptiveFormats` and `formats`) and uses YouTube's HTML5 Player API (`setPlaybackQualityRange`) to permanently prevent automatic upscaling.
-- **Facebook**: Intercepts standalone `.mpd` manifests and GraphQL `dash_manifest` responses, stripping high-bitrate representations while neutralizing progressive HD MP4 fallbacks.
-- **X (Twitter)**: Intercepts `video.twimg.com/*.m3u8` master playlists, removing high-resolution variants before video segments are downloaded.
-- **TikTok**: Prunes ByteDance XGPlayer multi-bitrate streams (`bitrateInfo` / `bit_rate`) and redirects all AVC/ByteVC1 playback addresses (`playAddr`, `playAddrH264`, `playAddrBytevc1`) to your chosen resolution.
+Facebook, X, and YouTube offer 240p/360p/480p ceilings where supported. TikTok offers actual 540p/720p values. Available formats depend on the individual video; a lower quality cannot be created if the server does not provide one. Existing buffered playback may require a reload after a change.
 
-### 📊 Real-Time Network Usage & Telemetry
-- **Browser-Wide Network Metering**: Tracks total browser download and upload rates in real time via lightweight, non-blocking `webRequest` listeners.
-- **Live Toolbar Badge & Hover Tooltip**: Displays current download speed directly on the extension icon (e.g. `200K`, `1.4M`) and full bidirectional usage on hover tooltip.
-- **20-Second Rolling Sparkline**: Live animated HTML5 canvas chart inside the popup card.
+Audio only requests remove video formats from supported intercepted responses. The UI reports the request separately from playback verification. It does not claim that video bytes are zero, or that every player accepts an audio-only manifest.
 
-### 🛑 Feed Autoplay & Background Preload Suppression
-- Enforces `preload="none"` dynamically across video elements via `document.createElement` interception.
-- Stops TikTok, YouTube, and X feeds from preloading upcoming offscreen videos in the background.
-- Instantly authorizes playback upon genuine user click without breaking native player controls.
-- Automatically pauses videos when scrolled out of view using `IntersectionObserver`.
+YouTube’s native player controls and its initial player object remain intact. Platform behavior can change independently of this extension.
 
-### ⌨️ In-Page Keyboard Shortcut (`Alt + Q`)
-- Press `Alt + Q` on any supported website to instantly cycle stream quality (`360p → 240p → Radio Mode → 480p → Default`) with a sleek on-screen toast notification.
+## Install or update locally
 
----
+1. Extract this folder if it was downloaded as a ZIP.
+2. Open `chrome://extensions` or `edge://extensions`.
+3. Enable Developer mode and select **Load unpacked**, then choose the folder containing `manifest.json`.
+4. To update an existing unpacked installation, select **Reload** on its extension card, then refresh open supported websites.
 
-## 📈 Data Savings Benchmark
+The extension requests access to the supported websites and their listed media CDNs, rather than every website. `webRequest` reads media response size headers; `declarativeNetRequest` applies the requested headers and video blocking rules. Settings/activity stay in local extension storage; source size observations are kept in page memory. There is no analytics endpoint or remote code.
 
-Streaming 1 hour of video on standard mobile or metered plans:
+Existing site preferences are retained. Old TikTok values are migrated to the quality labels they represented. Previous speculative MB savings and inflated counters are not imported into the new activity display; the old storage entries are left untouched.
 
-| Stream Setting | Approx. Bitrate | 1 Hour Data Usage | Bandwidth Saved |
-| :--- | :--- | :--- | :--- |
-| **1080p HD (Default)** | ~3,500 kbps | **~1,575 MB (1.5 GB)** | *0% (Baseline)* |
-| **720p HD** | ~2,000 kbps | **~900 MB** | **~43%** |
-| **480p (Balanced)** | ~1,000 kbps | **~450 MB** | **~71%** |
-| **360p (Recommended)** | ~550 kbps | **~245 MB** | **~84%** |
-| **240p (Maximum)** | ~300 kbps | **~135 MB** | **~91%** |
-| **📻 Radio Mode (Audio Only)** | ~96 kbps | **~43 MB** | **~97%** |
+## Verify
 
----
+No build step, dependencies, or package installation is required. Use Node.js 22+ and Microsoft Edge on Windows for the browser harnesses, or set `QG_BROWSER_PATH` to a Chromium browser that supports loading unpacked extensions via command line.
 
-## 📋 Platform Capability Matrix
-
-| Feature | YouTube | Facebook | X (Twitter) | TikTok |
-| :--- | :---: | :---: | :---: | :---: |
-| **Stream Interception** | InnerTube JSON | MPEG-DASH / GraphQL | HLS Master (`.m3u8`) | XGPlayer JSON & HLS Live |
-| **Quality Ceiling** | 240p / 360p / 480p | 240p / 360p / 480p | 240p / 360p / 480p | 540p / 720p *(Server Min: 540p)* |
-| **Radio Mode (Sound Only)** | ✅ | ✅ | *(Multiplexed)* | *(Multiplexed)* |
-| **Autoplay Suppression** | ✅ | ✅ | ✅ | ✅ |
-| **Preload Blocking** | ✅ | ✅ | ✅ | ✅ |
-| **Offscreen Video Pausing** | ✅ | ✅ | ✅ | ✅ |
-| **Strict Emergency Block** | ✅ | ✅ | ✅ | ✅ |
-| **On-Video Quality Pill** | ✅ | ✅ | ✅ | ✅ |
-| **Keyboard Shortcut (`Alt + Q`)** | ✅ | ✅ | ✅ | ✅ |
-
-> **ℹ️ Technical Note on TikTok Video Encoding:**
-> Unlike YouTube and Facebook, ByteDance (TikTok) servers do not encode portrait videos below **540p** (960×540 / 1024×576). QuotaGuard intercepts TikTok's XGPlayer JSON payload and locks the stream to the absolute lowest 540p tier, stripping 1080p and 720p streams and saving up to **~75% of video bandwidth**!
-
----
-
-## 🚀 Installation (15 Seconds)
-
-Because Google Chrome and Microsoft Edge require official Web Store digital signatures for `.crx` files (throwing `CRX_REQUIRED_PROOF_MISSING` on offline drag-and-drop), open-source extensions are installed directly via **Load Unpacked**:
-
-1. **Download:** Click to download [**quota-guard-v1.2.2.zip**](https://github.com/HassanSalah120/quota-guard/releases/download/v1.2.2/quota-guard-v1.2.2.zip).
-2. **Extract:** Right-click the downloaded file and select **Extract All...**
-3. **Open Extensions:** In your browser (Chrome, Edge, Brave, or Opera), open the extensions manager:
-   - Chrome / Brave: `chrome://extensions`
-   - Edge: `edge://extensions`
-4. **Developer Mode:** Turn on the **Developer mode** switch (top-right corner).
-5. **Load:** Click **Load unpacked** (top-left) and select the extracted `quota-guard` folder.
-
-QuotaGuard will immediately appear in your browser toolbar ready to protect your data!
-
----
-
-## 🧪 Automated Testing & Verification
-
-QuotaGuard features a comprehensive test suite including pure unit tests, DOM smoke tests, and full headless browser integration tests via Chrome DevTools Protocol (CDP):
-
-```bash
-# Run unit tests
-node tests/test.cjs            # Manifest, domains, defaults & assets
-node tests/youtube-test.cjs     # YouTube InnerTube pruning & Radio Mode
-node tests/tiktok-test.cjs      # TikTok XGPlayer bitrate adaptation
-node tests/hls-test.cjs         # X (Twitter) HLS master playlist filtering
-node tests/dash-test.cjs        # Facebook DASH & GraphQL manifest reduction
-
-# Run popup UI smoke test
-node tests/popup_smoke_test.mjs
-
-# Run full end-to-end Chromium integration tests (13 tests)
-node tests/real_browser_test.mjs
+```powershell
+node tests/run-tests.cjs
 ```
 
-### Test Suite Output
-```text
-PASS: domains, defaults, quality preference, manifest, assets
-PASS: YouTube adaptiveFormats pruning, resolution parsing, audio preservation, Radio Mode, and quality mappings
-PASS: TikTok bitrateInfo/bit_rate pruning, gear resolution parsing, playAddr redirection, and fallback
-PASS: HLS master filtering, portrait/landscape, low fallback, unlabelled bandwidth fallback, unchanged media playlist
-PASS: DASH master filtering, portrait/landscape, lowest fallback, Radio Mode, FBQualityLabel, single stream, audio preservation, GraphQL JSON
-=== Running Popup Smoke & UI Render Test ===
-✓ Popup rendered cleanly (350px × 532px)
-✓ Hero telemetry canvas and sparkline active
-✓ 4 Segmented tabs (Facebook, X, TikTok, YouTube) bound and functional
-=== POPUP UI SMOKE TEST PASSED 100% ===
-=== Starting QuotaGuard Real Chromium Integration Tests ===
-✓ TEST 1: Service Worker registered and active in MV3
-✓ TEST 2: Page scripts (MAIN world) successfully injected on x.com
-✓ TEST 3: Real HLS master playlist intercepted & capped to 360p on x.com
-✓ TEST 4: Programmatic autoplay blocked with NotAllowedError
-✓ TEST 5: User click immediately authorizes video without breaking native play buttons
-✓ TEST 6: Facebook GraphQL DASH manifest intercepted via response.json() & capped to 360p
-✓ TEST 7: DOMParser.prototype.parseFromString intercepts & caps DASH manifests
-✓ TEST 8: On-video pill badge persists on video container
-✓ TEST 9: Live browser network usage tracking active in background service worker
-✓ TEST 10: TikTok feed API intercepted via response.json() & capped to 360p
-✓ TEST 11: YouTube InnerTube API intercepted via response.json() & capped to 360p
-✓ TEST 12: YouTube Radio Mode downloads only audio while keeping video element visible
-✓ TEST 13: Hardened early window.ytInitialPlayerResponse and dynamic video preload blocking verified
-✓ TEST 14: TikTok player container detection & 540p stream badge verified
-=======================================================
-  ALL 14 REAL BROWSER INTEGRATION TESTS PASSED 100%
-=======================================================
-```
+This runs eight unit/regression scripts, the popup checks, and 22 browser integration checks. The browser checks use isolated temporary profiles and controlled website responses. The media-size checks use a real playable recording, decoded resolution, real MediaSource appends, and a native video response with a known byte length. They do not establish compatibility with current authenticated platform feeds.
 
----
+Optional: set `QG_SCREENSHOT_DIR` to capture popup and player screenshots during browser tests.
 
-## 🔒 Security & Privacy
-
-- **Zero Tracking**: QuotaGuard does not collect, log, transmit, or monetize any browsing history, credentials, or personal data.
-- **Local Storage Only**: All settings and statistics are kept strictly within Chrome's local storage (`chrome.storage.local`).
-- **No Remote Code Execution**: Follows strict Chrome Web Store Manifest V3 guidelines with zero external scripts or eval execution.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+License: [MIT](LICENSE).

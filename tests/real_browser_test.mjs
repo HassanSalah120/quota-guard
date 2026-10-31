@@ -4,8 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import assert from 'node:assert/strict';
 
-const BROWSER_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-const EXT_PATH = path.resolve('C:\\Users\\hassa\\Downloads\\quota-guard-fb-x-v1.1\\quota-guard-fb-x');
+const BROWSER_PATH = process.env.QG_BROWSER_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+const EXT_PATH = path.resolve(import.meta.dirname, '..');
 const CDP_PORT = 9232;
 
 console.log('=== Starting QuotaGuard Real Chromium Integration Tests ===\n');
@@ -118,7 +118,10 @@ class CdpSession {
     let body = pageHtml;
     let contentType = 'text/html';
 
-    if (url.includes('.m3u8')) {
+    if (url.includes('/test-size.webm') && this.mediaFixture) {
+      body = this.mediaFixture;
+      contentType = 'video/webm';
+    } else if (url.includes('.m3u8')) {
       body = sampleHls;
       contentType = 'application/vnd.apple.mpegurl';
     } else if (url.includes('/api/graphql')) {
@@ -180,6 +183,7 @@ class CdpSession {
       responseCode: 200,
       responseHeaders: [
         { name: 'Content-Type', value: contentType },
+        { name: 'Content-Length', value: String(Buffer.byteLength(body)) },
         { name: 'Access-Control-Allow-Origin', value: '*' }
       ],
       body: encodedBody
@@ -377,21 +381,18 @@ try {
   assert.ok(pillResult.text.includes('720p'), 'Pill text must include resolution');
   console.log('✓ TEST 8: On-video pill badge persists on video container');
 
-  // TEST 9: Live Network Speed Monitor
-  await new Promise(r => setTimeout(r, 1200));
+  // TEST 9: Real autoplay events reach the serialized activity writer.
+  await new Promise(r => setTimeout(r, 300));
   const swSession = new CdpSession(swTarget.webSocketDebuggerUrl);
   await swSession.ready();
-  const swSpeedResult = await swSession.eval(`(async () => {
-    return new Promise(resolve => {
-      chrome.storage.local.get('liveSpeed', data => resolve(data.liveSpeed || null));
-    });
-  })()`);
-  swSession.close();
-
-  assert.ok(swSpeedResult !== null, 'liveSpeed must be saved in storage');
-  assert.ok(typeof swSpeedResult.dl === 'number', 'liveSpeed.dl must be a number');
-  assert.ok(typeof swSpeedResult.ul === 'number', 'liveSpeed.ul must be a number');
-  console.log('✓ TEST 9: Live browser network usage tracking active in background service worker');
+  let activity;
+  for (let i = 0; i < 40; i++) {
+    activity = await swSession.eval("chrome.storage.local.get('activity')");
+    if (activity.activity?.x?.autoplaysBlocked === 1) break;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  assert.equal(activity.activity?.x?.autoplaysBlocked, 1, 'One blocked video must be counted once');
+  console.log('✓ TEST 9: Blocked-video activity recorded without fabricated MB savings');
 
   // TEST 10: TikTok Feed API Interception & XGPlayer Bitrate Reduction
   await session.send('Page.navigate', { url: 'https://www.tiktok.com/foryou' });
@@ -464,7 +465,7 @@ try {
   assert.equal(radioResult.formatsCount, 0, 'Must strip all progressive formats');
   assert.equal(radioResult.applied, 'Radio mode (sound only) applied');
   assert.equal(radioResult.videoVisible, true, 'Video element must NOT be hidden');
-  console.log('✓ TEST 12: YouTube Radio Mode downloads only audio while keeping video element visible');
+  console.log('✓ TEST 12: YouTube Radio Mode offers audio-only formats while keeping player visible');
 
   // TEST 13: YouTube Anti-Adblock Compliance & Player API Quality Integration
   const antiAdblockCheck = await session.eval(`(() => {
@@ -502,7 +503,7 @@ try {
   assert.equal(antiAdblockCheck.best360, 'medium', 'Player API must map 360p to medium');
   assert.equal(antiAdblockCheck.best240, 'small', 'Player API must map 240p to small');
   assert.equal(antiAdblockCheck.qgBlocked, false, 'play() must NOT be blocked on YouTube (anti-adblock ad-engine compliance)');
-  console.log('✓ TEST 13: YouTube Anti-Adblock Compliance & Player API Quality Integration verified');
+  console.log('✓ TEST 13: YouTube initial object and play lifecycle preserved; quality mappings verified');
 
   // TEST 14: TikTok Container Quality Badge & Resolution Verification
   await session.send('Page.navigate', { url: 'https://www.tiktok.com/@creator/video/123456' });
@@ -536,14 +537,192 @@ try {
   assert.ok(tiktokPillCheck.text.includes('540p'), 'Badge text must reflect 540p stream');
   console.log('✓ TEST 14: TikTok player container detection & 540p stream badge verified');
 
+
+  async function waitUntil(expression) {
+    for (let i=0;i<40;i++) {
+      if (await session.eval(expression).catch(()=>false)) return;
+      await new Promise(r=>setTimeout(r,50));
+    }
+    throw new Error('Timed out waiting for browser state');
+  }
+  async function setting(site,key,value) {
+    await swSession.eval(`(async()=>{const d=await chrome.storage.local.get('settings');const s=QuotaGuard.normalize(d.settings);s[${JSON.stringify(site)}][${JSON.stringify(key)}]=${JSON.stringify(value)};await chrome.storage.local.set({settings:s});})()`);
+  }
+  // TEST 15: Real settings propagation disables response filtering.
+  await setting('tiktok','enabled',false);
+  await waitUntil("document.documentElement.getAttribute('data-qg-enabled')==='no'");
+  const offPlaylist=await session.eval("fetch('https://video.twimg.com/off.m3u8').then(r=>r.text())");
+  assert.ok(offPlaylist.includes('720x1280'));
+  assert.equal(await session.eval("!!document.querySelector('.qg-pill-badge')"),false);
+  console.log('✓ TEST 15: Off removes the badge and preserves HD stream choices');
+  await setting('tiktok','enabled',true);
+  await setting('tiktok','preventPreload',false);
+  await waitUntil("document.documentElement.getAttribute('data-qg-preload')==='allow'");
+  const separatePreload=await session.eval(`(async()=>{
+    const v=document.createElement('video');v.preload='auto';
+    const before=v.preload;let blocked=false;
+    try{await v.play();}catch(e){blocked=e.message.includes('QuotaGuard');}
+    return {before,after:v.preload,blocked};
+  })()`);
+  assert.equal(separatePreload.blocked,true);
+  assert.equal(separatePreload.after,separatePreload.before);
+  console.log('✓ TEST 16: Autoplay blocking respects the independent preload setting');
+
+  await session.send('Page.navigate',{url:'https://www.youtube.com/watch?v=bytes-test'});
+  await waitUntil("document.readyState==='complete'&&document.documentElement.getAttribute('data-qg-site')==='youtube'");
+  await setting('youtube','quality','360');
+  await waitUntil("document.documentElement.getAttribute('data-qg-quality')==='360'");
+  // A real playable recording exercises media events and decoded dimensions.
+  // No videoWidth, paused, duration, or content-script state is mocked here.
+  const fixture = await session.eval(`(async()=>{
+    const canvas=document.createElement('canvas');canvas.width=640;canvas.height=360;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#23342b';ctx.fillRect(0,0,640,360);
+    const stream=canvas.captureStream(10);
+    const recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp8'});
+    const chunks=[];recorder.ondataavailable=e=>chunks.push(e.data);
+    const stopped=new Promise(r=>recorder.onstop=r);recorder.start();
+    await new Promise(r=>setTimeout(r,300));ctx.fillStyle='#314c3c';ctx.fillRect(0,0,640,360);
+    await new Promise(r=>setTimeout(r,300));recorder.stop();await stopped;
+    stream.getTracks().forEach(t=>t.stop());
+    const bytes=await new Blob(chunks).arrayBuffer();
+    window.__qgTestBytes=bytes;
+    const v=document.getElementById('test-video');v.muted=true;v.loop=true;v.preload='auto';
+    const media=new MediaSource();v.src=URL.createObjectURL(media);
+    await new Promise(r=>media.addEventListener('sourceopen',r,{once:true}));
+    const buffer=media.addSourceBuffer('video/webm;codecs="vp8"');
+    buffer.appendBuffer(bytes);await new Promise(r=>buffer.addEventListener('updateend',r,{once:true}));
+    media.endOfStream();await v.play();
+    return {bytes:bytes.byteLength,data:Array.from(new Uint8Array(bytes)),width:v.videoWidth,height:v.videoHeight};
+  })()`);
+  assert.equal(fixture.width,640);
+  assert.equal(fixture.height,360);
+  await new Promise(r=>setTimeout(r,400));
+  let beforeActivity;
+  for(let i=0;i<40;i++){
+    beforeActivity=await swSession.eval("chrome.storage.local.get('activity')");
+    if(beforeActivity.activity?.youtube?.videosCapped===1)break;
+    await new Promise(r=>setTimeout(r,50));
+  }
+  const statusExpression="(async()=>{const [tab]=await chrome.tabs.query({url:'https://www.youtube.com/*'});return chrome.tabs.sendMessage(tab.id,{type:'qg-status'});})()";
+  assert.equal(beforeActivity.activity.youtube.videosCapped,1,JSON.stringify(await swSession.eval(statusExpression)));
+  for(let i=0;i<3;i++){
+    await session.eval("document.body.appendChild(document.createElement('div'))");
+    await new Promise(r=>setTimeout(r,400));
+  }
+  const afterActivity=await swSession.eval("chrome.storage.local.get('activity')");
+  assert.equal(afterActivity.activity.youtube.videosCapped,1,'Repeated playback/DOM events must not recount one source');
+  console.log('✓ TEST 17: A real 360p video is counted once across loops and DOM mutations');
+  await setting('youtube','quality','240');
+  await waitUntil("document.documentElement.getAttribute('data-qg-quality')==='240'");
+  let liveStatus=await swSession.eval("(async()=>{const [tab]=await chrome.tabs.query({url:'https://www.youtube.com/*'});return chrome.tabs.sendMessage(tab.id,{type:'qg-status'});})()");
+  assert.equal(liveStatus.state,'above');
+  assert.equal(liveStatus.actualResolution,360);
+  assert.equal(liveStatus.mediaSize.kind,'buffered');
+  assert.equal(liveStatus.mediaSize.bytes,fixture.bytes,'Byte count must match the real MSE append exactly');
+  assert.ok(!liveStatus.quality.includes('est.'));
+  await session.eval("document.getElementById('test-video').dispatchEvent(new Event('timeupdate'))");
+  assert.ok((await session.eval("document.querySelector('.qg-pill-badge').textContent")).includes('buffered'));
+
+  const chip=await session.eval(`(()=>{
+    const badge=document.querySelector('.qg-pill-badge');const r=badge.getBoundingClientRect();
+    const v=document.getElementById('test-video').getBoundingClientRect();
+    return {text:badge.textContent,width:r.width,top:r.top-v.top,bottom:v.bottom-r.bottom,left:r.left-v.left,right:v.right-r.right,warning:getComputedStyle(badge.querySelector('.qg-badge-warning')).display};
+  })()`);
+  assert.ok(!chip.text.includes('Above target')&&!chip.text.includes('Size unavailable'),'No warning paragraph on the video');
+  assert.ok(chip.width<240,'Compact chip must stay narrow');
+  assert.ok(chip.top>40&&chip.bottom>=40,'Chip must clear top corners and bottom player controls');
+  assert.ok(chip.left>=10&&chip.right>=10,'Chip must stay inside the video even when its container is wider');
+  assert.notEqual(chip.warning,'none');
+
+  console.log('✓ TEST 18: Above-target state uses real dimensions and exact per-player MSE bytes');
+  if(process.env.QG_SCREENSHOT_DIR){
+    fs.mkdirSync(process.env.QG_SCREENSHOT_DIR,{recursive:true});
+    const videoBox=await session.eval("(()=>{const r=document.getElementById('test-video').getBoundingClientRect();return {x:r.x,y:r.y};})()");
+    await session.send('Input.dispatchMouseEvent',{type:'mouseMoved',x:videoBox.x+60,y:videoBox.y+60});
+    await new Promise(r=>setTimeout(r,200));
+    const clip=await session.eval("(()=>{const r=document.querySelector('.qg-pill-badge').getBoundingClientRect();return {x:r.x-6,y:r.y-6,width:r.width+12,height:r.height+12,scale:2};})()");
+    const shot=await session.send('Page.captureScreenshot',{format:'png',clip});
+    fs.writeFileSync(path.join(process.env.QG_SCREENSHOT_DIR,'quotaguard-player.png'),Buffer.from(shot.data,'base64'));
+  }
+  // A native media request bypasses fetch; its full length must reach this video.
+  session.mediaFixture=Buffer.from(fixture.data);
+  await session.eval(`(async()=>{
+    const v=document.getElementById('test-video');
+    v.src='https://video.twimg.com/test-size.webm';await v.play();
+  })()`);
+  await new Promise(r=>setTimeout(r,250));
+  liveStatus=await swSession.eval("(async()=>{const [tab]=await chrome.tabs.query({url:'https://www.youtube.com/*'});return chrome.tabs.sendMessage(tab.id,{type:'qg-status'});})()");
+  assert.equal(liveStatus.mediaSize.kind,'total');
+  assert.equal(liveStatus.mediaSize.bytes,fixture.bytes,'Full media total must match the real response body length');
+  console.log('✓ TEST 19: Native video response Content-Length reports the exact full resource size');
+
+  // Opening a Facebook Reel must not let quality automation close its viewer.
+  await session.send('Page.navigate',{url:'https://www.facebook.com/reel/navigation-regression'});
+  await waitUntil("document.readyState==='complete'&&document.documentElement.getAttribute('data-qg-site')==='facebook'");
+  await session.eval(`(async()=>{
+    document.body.replaceChildren();
+    window.reelActions={gear:0,quality:0,close:0};
+    const viewer=document.createElement('section');viewer.id='reel-viewer';viewer.setAttribute('role','dialog');
+    const close=document.createElement('button');close.setAttribute('aria-label','Close reel');close.textContent='Close';
+    close.onclick=()=>{window.reelActions.close++;viewer.remove();history.replaceState({},'','/');};
+    const gear=document.createElement('button');gear.setAttribute('aria-label','Playback settings');gear.textContent='Settings';
+    gear.onclick=()=>{
+      window.reelActions.gear++;
+      const menu=document.createElement('div');menu.setAttribute('role','menu');
+      const quality=document.createElement('button');quality.setAttribute('role','menuitemradio');quality.textContent='360p';
+      quality.onclick=()=>{window.reelActions.quality++;menu.remove();};menu.append(quality);viewer.append(menu);
+    };
+    const video=document.createElement('video');video.width=640;video.height=360;video.muted=true;video.loop=true;
+    video.setAttribute('data-qg-manual-play','yes');video.src='https://video.twimg.com/test-size.webm';
+    viewer.append(close,gear,video);document.body.append(viewer);await video.play();
+  })()`);
+  await new Promise(r=>setTimeout(r,1600));
+  const reelResult=await session.eval("({viewerOpen:!!document.getElementById('reel-viewer'),path:location.pathname,actions:window.reelActions})");
+  assert.equal(reelResult.viewerOpen,true,JSON.stringify(reelResult));
+  assert.deepEqual(reelResult.actions,{gear:0,quality:0,close:0});
+  assert.equal(reelResult.path,'/reel/navigation-regression');
+  console.log('✓ TEST 20: Facebook Reel stays open; no automated settings, quality, or Close clicks');
+
+  // A genuine Home -> Reel click authorizes the new viewer, not only its preview.
+  await session.eval(`(()=>{
+    document.body.replaceChildren();history.replaceState({},'','/');
+    const link=document.createElement('a');link.id='open-reel';link.href='/reel/from-home';link.textContent='Open reel';
+    link.onclick=event=>{
+      event.preventDefault();history.pushState({},'','/reel/from-home');
+      const viewer=document.createElement('section');viewer.id='manual-reel-viewer';viewer.setAttribute('role','dialog');
+      const video=document.createElement('video');video.width=640;video.height=360;video.muted=true;video.loop=true;
+      video.src='https://video.twimg.com/test-size.webm';viewer.append(video);document.body.append(viewer);
+      video.play().then(()=>window.manualReelResult='playing').catch(error=>window.manualReelResult=error.message);
+    };
+    document.body.append(link);
+  })()`);
+  const reelLink=await session.eval("(()=>{const r=document.getElementById('open-reel').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
+  await session.send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...reelLink});
+  await session.send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...reelLink});
+  await waitUntil("typeof window.manualReelResult==='string'");
+  assert.equal(await session.eval('window.manualReelResult'),'playing','A trusted Reel-open click must allow its newly mounted video');
+  assert.equal(await session.eval('location.pathname'),'/reel/from-home');
+  console.log('✓ TEST 21: A genuine Home-to-Reel click authorizes the newly mounted viewer video');
+
+  const otherAutoplayBlocked=await session.eval(`(async()=>{
+    const unrelated=document.createElement('video');document.body.append(unrelated);
+    try{await unrelated.play();return false;}catch(error){return error.message.includes('QuotaGuard');}
+    finally{unrelated.remove();}
+  })()`);
+  assert.equal(otherAutoplayBlocked,true,'Reel-open permission must not enable unrelated feed videos');
+  console.log('✓ TEST 22: Reel-open permission leaves unrelated autoplay blocked');
+  swSession.close();
   session.close();
   console.log('\n=======================================================');
-  console.log('  ALL 14 REAL BROWSER INTEGRATION TESTS PASSED 100%');
+  console.log('  ALL 22 REAL BROWSER INTEGRATION TESTS PASSED 100%');
   console.log('=======================================================');
 
 } finally {
   browserProcess.kill();
   setTimeout(() => {
-    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (_) {}
+    try {
+      const absolute = path.resolve(tempDir);
+      if (absolute.startsWith(path.join(os.tmpdir(), 'qg-'))) fs.rmSync(absolute, {recursive: true, force: true});
+    } catch (_) {}
   }, 1000);
 }

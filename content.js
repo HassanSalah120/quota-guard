@@ -6,62 +6,59 @@
   let settings = QuotaGuard.DEFAULTS[SITE];
   const videos = new Map();
   let mutationTimer = 0;
-  let qualityTimer = 0;
   let activeVideo = null;
-  const qualityAttempts = new WeakMap();
+  const verifiedSources = new WeakMap();
+  const blockedSources = new WeakMap();
+  const mediaSizes = new Map();
+  function rememberMediaSize(url, kind, bytes) {
+    if (typeof url !== 'string' || !Number.isSafeInteger(bytes) || bytes < 0) return;
+    mediaSizes.set(url.split('#')[0], {kind, bytes, label: QuotaGuardQuality.formatMediaBytes(bytes) + (kind === 'total' ? ' total' : ' buffered')});
+    if (mediaSizes.size > 60) mediaSizes.delete(mediaSizes.keys().next().value);
+  }
+  document.addEventListener('qg-media-bytes', event => {
+    rememberMediaSize(event.detail?.url, 'buffered', event.detail?.bytes);
+  });
+  const supportsPlaybackControls = QuotaGuard.CAPABILITIES[SITE].playbackControls;
 
   function isVideoElement(el) {
     return (typeof HTMLVideoElement !== 'undefined' && el instanceof HTMLVideoElement) ||
            el?.tagName === 'VIDEO';
   }
 
-  function protect() { return settings.enabled && settings.stopAutoplay && !settings.strictBlock; }
+  function protect() { return supportsPlaybackControls && settings.enabled && settings.stopAutoplay && !settings.strictBlock; }
   function setRootFlag() {
     const root = document.documentElement;
     if (root) {
       root.setAttribute('data-qg-site', SITE);
       root.setAttribute('data-qg-autoplay', protect() ? 'block' : 'allow');
+      root.setAttribute('data-qg-preload', supportsPlaybackControls && settings.enabled && settings.preventPreload ? 'block' : 'allow');
       root.setAttribute('data-qg-enabled', settings.enabled && !settings.strictBlock ? 'yes' : 'no');
       root.setAttribute('data-qg-quality', settings.enabled && !settings.strictBlock ? settings.quality : 'auto');
     }
   }
 
-  // --- Statistics Recording ---
-  async function incrementStat(field, mbDelta = 0) {
-    try {
-      const data = await chrome.storage.local.get('stats');
-      const allStats = QuotaGuard.normalizeStats(data.stats);
-      allStats[SITE][field] = (allStats[SITE][field] || 0) + 1;
-      if (mbDelta > 0) {
-        allStats[SITE].mbSavedEst = Math.round(((allStats[SITE].mbSavedEst || 0) + mbDelta) * 10) / 10;
-      }
-      await chrome.storage.local.set({ stats: allStats });
-    } catch (_) {}
+  // Count a source once per video element, rather than once per DOM sweep.
+  function sourceKey(video) { return video.currentSrc || video.getAttribute('src') || ''; }
+  function recordOnce(video, seen, field) {
+    const key = sourceKey(video);
+    if (seen.has(video) && seen.get(video) === key) return;
+    seen.set(video, key);
+    chrome.runtime.sendMessage({type: 'qg-stat', field}).catch(() => {});
+  }
+  function recordBlocked(video) {
+    if (isVideoElement(video) && protect()) recordOnce(video, blockedSources, 'autoplaysBlocked');
   }
 
   document.addEventListener('qg-cap-applied', event => {
+    if (!settings.enabled || settings.strictBlock) return;
     const q = event.detail?.quality || settings.quality;
-    const isRadio = q === 'audio';
-    // Radio mode saves ~35 MB per video compared to full HD streaming
-    incrementStat('videosCapped', isRadio ? 35 : 18);
-    const targetVideo = activeVideo ||
-      [...document.querySelectorAll('video')].find(v => QuotaGuardPlayer.visible(v)) ||
-      document.querySelector('video');
-    if (targetVideo) {
-      let text = isRadio ? 'Radio Mode (Sound Only)' : `${q}p Cap Active`;
-      if (SITE === 'tiktok' && (q === 540 || q === '540')) {
-        text = '540p Active (TikTok Min • ~75% Saved)';
-      }
-      showPillBadge(targetVideo, text);
-    }
+    const video = activeVideo || [...document.querySelectorAll('video')].find(v => QuotaGuardPlayer.visible(v));
+    if (video && !video.paused && video.videoWidth > 0) verifyStreamResolution(video);
+    else if (video) showPillBadge(video, q === 'audio' ? 'Audio requested' : `${q}p offered`);
   });
+  document.addEventListener('qg-autoplay-blocked', event => recordBlocked(event.target), true);
 
-  document.addEventListener('qg-autoplay-blocked', () => {
-    // Each unplayed background autoplay saves approx 8-12 MB of preloaded chunks
-    incrementStat('autoplaysBlocked', 10);
-  });
-
-  // --- Visual Feedback Pill (Persistent Stream Indicator) ---
+  // --- On-player quality control ---
   function getPlayerContainer(video) {
     if (!video) return null;
     const named = video.closest(
@@ -73,32 +70,71 @@
     return named || video.parentElement;
   }
 
-  function showPillBadge(video, text) {
+  function showPillBadge(video, text, status = {}) {
     const container = getPlayerContainer(video);
     if (!container || !video.isConnected) return;
 
     if (getComputedStyle(container).position === 'static') {
+      const state = videos.get(video);
+      if (state && !state.modifiedParent) {
+        state.modifiedParent = container;
+        state.oldPosition = container.style.position;
+      }
       container.style.position = 'relative';
     }
+    container.classList.add('qg-player');
 
     let badge = container.querySelector('.qg-pill-badge');
     if (!badge) {
-      badge = document.createElement('div');
+      badge = document.createElement('button');
+      badge.type = 'button';
       badge.className = 'qg-pill-badge';
+      const label = document.createElement('span');
+      label.className = 'qg-badge-quality';
+      const warning = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      for (const [name, value] of Object.entries({class: 'qg-badge-warning', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'aria-hidden': 'true', hidden: ''})) warning.setAttribute(name, value);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M8 3v6m0 2v2M8 1.5 15 14H1L8 1.5Z');
+      warning.appendChild(path);
+      const size = document.createElement('span');
+      size.className = 'qg-badge-size';
+      size.hidden = true;
+      badge.append(label, warning, size);
       if (SITE === 'tiktok') badge.classList.add('qg-tiktok');
-      badge.title = 'QuotaGuard Stream Quality Monitor • Click to cycle quality (Alt+Q)';
+      badge.title = 'Change QuotaGuard quality (Alt+Q)';
       badge.addEventListener('click', e => {
         e.stopPropagation();
         e.preventDefault();
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', altKey: true, bubbles: true }));
+        if (e.isTrusted) cycleQuality();
       });
       container.appendChild(badge);
     }
     const state = videos.get(video);
     if (state) state.badge = badge;
 
-    badge.textContent = `⚡ QuotaGuard: ${text}`;
-    if (text.includes('Server Min')) {
+    // A modal/container can be much wider than its portrait video. Anchor to
+    // the video itself, and account for transforms on the containing element.
+    const frame = video.getBoundingClientRect();
+    const parent = container.getBoundingClientRect();
+    const scaleX = (parent.width / container.offsetWidth) || 1;
+    const scaleY = (parent.height / container.offsetHeight) || 1;
+    const clearance = SITE === 'youtube' ? 50 : SITE === 'tiktok' ? 86 : 64;
+    const bottom = Math.min(clearance, Math.max(8, frame.height / scaleY / 3));
+    badge.style.setProperty('--qg-chip-right', `${Math.max(0, (parent.right - frame.right) / scaleX) + 12}px`);
+    badge.style.setProperty('--qg-chip-bottom', `${Math.max(0, (parent.bottom - frame.bottom) / scaleY) + bottom}px`);
+    badge.style.setProperty('--qg-chip-max', `${Math.max(24, frame.width / scaleX - 24)}px`);
+
+    const label = status.actualResolution ? `${status.actualResolution}p` : (text.match(/^(\d+p|SD|Audio)/)?.[1] || 'Quality');
+    const qualityLabel = badge.querySelector('.qg-badge-quality');
+    if (qualityLabel.textContent !== label) qualityLabel.textContent = label;
+    const above = status.state === 'above';
+    badge.querySelector('.qg-badge-warning').toggleAttribute('hidden', !above);
+    const size = badge.querySelector('.qg-badge-size');
+    const sizeLabel = above && status.mediaSize ? status.mediaSize.label : '';
+    if (size.textContent !== sizeLabel) size.textContent = sizeLabel;
+    size.hidden = !sizeLabel;
+    badge.setAttribute('aria-label', `${text}. Change QuotaGuard quality`);
+    if (above) {
       badge.classList.add('qg-pill-server-min');
     } else {
       badge.classList.remove('qg-pill-server-min');
@@ -106,27 +142,21 @@
   }
 
   // --- Quick Keyboard Shortcut (Alt + Q) ---
-  const supportsRadio = SITE === 'youtube' || SITE === 'facebook';
-  const QUALITY_CYCLE = supportsRadio
-    ? ['360', '240', 'audio', '480', 'auto']
-    : ['360', '240', '480', 'auto'];
-
-  document.addEventListener('keydown', async event => {
-    if (event.altKey && (event.key === 'q' || event.key === 'Q')) {
-      const currentIdx = QUALITY_CYCLE.indexOf(settings.quality);
-      const nextQuality = QUALITY_CYCLE[(currentIdx + 1) % QUALITY_CYCLE.length];
-      settings.quality = nextQuality;
-      setRootFlag();
-      try {
-        const stored = await chrome.storage.local.get('settings');
-        const config = QuotaGuard.normalize(stored.settings);
-        config[SITE].quality = nextQuality;
-        await chrome.storage.local.set({ settings: config });
-      } catch (_) {}
-      const toastLabel = nextQuality === 'audio'
-        ? 'Radio Mode (Sound Only)'
-        : (nextQuality === 'auto' ? 'Default Quality' : nextQuality + 'p Cap');
-      showToast(`QuotaGuard: ${toastLabel}`);
+  const QUALITY_CYCLE = QuotaGuard.QUALITY_OPTIONS[SITE];
+  async function cycleQuality() {
+    if (!settings.enabled || settings.strictBlock) return;
+    const next = QUALITY_CYCLE[(QUALITY_CYCLE.indexOf(settings.quality) + 1) % QUALITY_CYCLE.length];
+    try {
+      const result = await chrome.runtime.sendMessage({type: 'qg-setting', site: SITE, key: 'quality', value: next});
+      if (!result?.ok) throw new Error('Not saved');
+      const label = next === 'audio' ? 'Audio only requested' : next === 'auto' ? 'Site default' : `${next}p target`;
+      showToast(`QuotaGuard: ${label}`);
+    } catch (_) { showToast('Quality could not be saved. Reload this tab and try again.'); }
+  }
+  document.addEventListener('keydown', event => {
+    if (event.isTrusted && event.altKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'q') {
+      event.preventDefault();
+      cycleQuality();
     }
   });
 
@@ -136,7 +166,8 @@
     const toast = document.createElement('div');
     toast.className = 'qg-toast';
     toast.textContent = msg;
-    document.body.appendChild(toast);
+    toast.setAttribute('role', 'status');
+    document.body?.appendChild(toast);
     setTimeout(() => {
       toast.classList.add('qg-fade');
       setTimeout(() => toast.remove(), 400);
@@ -145,7 +176,7 @@
 
   const io = new IntersectionObserver(entries => {
     // YouTube handles its own miniplayer/picture-in-picture when scrolling to comments; do not force-pause on YouTube
-    if (!settings.enabled || !settings.pauseOffscreen || SITE === 'youtube') return;
+    if (!settings.enabled || !settings.pauseOffscreen || settings.quality === 'audio' || !supportsPlaybackControls) return;
     for (const entry of entries) {
       const video = entry.target;
       if (entry.isIntersecting || video.paused) continue;
@@ -167,7 +198,7 @@
       if (state.chip) {
         state.chip.remove();
         state.chip = null;
-        if (state.modifiedParent && state.oldPosition !== null) {
+        if (!state.badge && state.modifiedParent && state.oldPosition !== null) {
           state.modifiedParent.style.position = state.oldPosition;
           state.modifiedParent = null;
         }
@@ -184,7 +215,7 @@
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'qg-play-chip';
-    chip.textContent = '▶ Play video';
+    chip.textContent = 'Play video';
     chip.title = 'Allow this video to play and use data';
     chip.setAttribute('aria-label', 'Play video — this will use internet data');
     chip.addEventListener('click', async event => {
@@ -208,14 +239,31 @@
   function applyVideo(video) {
     if (!isVideoElement(video)) return;
     if (!videos.has(video)) {
-      videos.set(video, {chip: null, badge: null, modifiedParent: null, oldPosition: null});
+      const hardened = video.hasAttribute('data-qg-original-preload');
+      videos.set(video, {chip: null, badge: null, modifiedParent: null, oldPosition: null,
+        originalPreload: hardened ? (video.getAttribute('data-qg-original-preload') || null) : video.getAttribute('preload'), preloadChanged: hardened});
       io.observe(video);
     }
-    // YouTube anti-adblock compliance: do not interfere with YouTube's ad-engine or media element state
-    if (SITE !== 'youtube') {
+    const state = videos.get(video);
+    if ((!settings.enabled || !settings.preventPreload) && state.preloadChanged) {
+      state.preloadChanged = false;
+      if (state.originalPreload === null) video.removeAttribute('preload');
+      else video.setAttribute('preload', state.originalPreload);
+    }
+    if (!settings.enabled || settings.strictBlock) {
+      state.badge?.remove();
+      state.badge = null;
+      getPlayerContainer(video)?.classList.remove('qg-player');
+      if (!state.chip && state.modifiedParent) {
+        state.modifiedParent.style.position = state.oldPosition;
+        state.modifiedParent = null;
+      }
+    }
+    // YouTube owns its playback lifecycle; only its quality cap is managed here.
+    if (supportsPlaybackControls) {
       if (settings.enabled && settings.preventPreload &&
           video.getAttribute('data-qg-manual-play') !== 'yes') {
-        if (video.preload !== 'none') video.preload = 'none';
+        if (video.preload !== 'none') { state.preloadChanged = true; video.preload = 'none'; }
       }
       if (protect() && video.getAttribute('data-qg-manual-play') !== 'yes') {
         if (video.autoplay) video.autoplay = false;
@@ -237,12 +285,7 @@
       } catch (_) {}
     }
     if (!video) {
-      video = target.closest?.('[data-testid*="video" i], [role="region"], [role="main"], [data-video-id], .x1yztbdb')?.querySelector('video');
-    }
-    if (!video) {
-      const allVideos = [...document.querySelectorAll('video')];
-      const visible = allVideos.find(v => QuotaGuardPlayer.visible(v));
-      if (visible) video = visible;
+      video = target.closest?.('[data-testid*="video" i], [role="region"], [data-video-id], .x1yztbdb')?.querySelector('video');
     }
     if (video) {
       video.setAttribute('data-qg-manual-play', 'yes');
@@ -262,6 +305,7 @@
     if (settings.enabled && (settings.strictBlock ||
         (settings.stopAutoplay && video.getAttribute('data-qg-manual-play') !== 'yes'))) {
       video.pause();
+      recordBlocked(video);
       renderChip(video);
     } else {
       renderChip(video);
@@ -273,144 +317,39 @@
     if (!root) return;
     if (isVideoElement(root)) applyVideo(root);
     else if (root.querySelectorAll) root.querySelectorAll('video').forEach(applyVideo);
-    checkQualityMenus();
   }
 
-  // Open the player's own settings automatically during manual playback.
-  // Twitter has no quality menu; its quality is capped directly at the HLS layer.
-  function checkQualityMenus() {
-    if (!settings.enabled || settings.quality === 'auto' || settings.strictBlock) return;
-    if (SITE === 'x' || SITE === 'tiktok' || SITE === 'youtube') return; // X, TikTok, and YouTube handled via stream & player API
-
-    const video = activeVideo;
-    if (!video?.isConnected || video.paused || !QuotaGuardPlayer.visible(video)) return;
-    const current = qualityAttempts.get(video) || {count: 0, phase: 'gear', preference: settings.quality};
-    if (current.preference !== settings.quality) {
-      current.count = 0; current.phase = 'gear'; current.preference = settings.quality;
-    }
-    if (++current.count > 12 || current.phase === 'done') return;
-    qualityAttempts.set(video, current);
-    try {
-      const choice = QuotaGuardPlayer.resolutionAction(settings.quality);
-      if (choice) {
-        const match = QuotaGuardQuality.parseResolution(choice.textContent || choice.getAttribute('aria-label'));
-        choice.click();
-        current.phase = 'done';
-        if (match) video.setAttribute('data-qg-player-quality', String(match));
-        const applied = match ? `${match}p requested in player` : 'SD requested in player';
-        document.documentElement?.setAttribute('data-qg-quality-applied', applied);
-        // Dismiss menu so it does not linger over the video
-        setTimeout(() => {
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
-          const closeBtn = document.querySelector('[aria-label*="close" i], [aria-label*="إغلاق" i]');
-          if (closeBtn && QuotaGuardPlayer.visible(closeBtn)) {
-            closeBtn.click();
-          } else {
-            const control = QuotaGuardPlayer.gear(video);
-            if (QuotaGuardPlayer.menuActions().length > 0 && control) {
-              control.click();
-            }
-          }
-          if (video && QuotaGuardPlayer.visible(video)) video.focus?.();
-        }, 300);
-        return;
-      }
-      const quality = QuotaGuardPlayer.qualitySubmenuAction();
-      if (quality && current.phase !== 'gear') {
-        quality.click();
-        current.phase = 'choice';
-        return;
-      }
-      if (current.phase === 'gear' || current.phase === 'retry') {
-        const control = QuotaGuardPlayer.gear(video);
-        if (control) { control.click(); current.phase = 'quality'; return; }
-      }
-      if (current.count % 4 === 0 && current.phase === 'quality') current.phase = 'retry';
-    } catch (_) { /* player UI changed */ }
-  }
-
-  function startQualityAttempt(video) {
-    if (!settings.enabled || settings.quality === 'auto' || settings.strictBlock) return;
-    activeVideo = video;
-    qualityAttempts.delete(video);
-    if (qualityTimer) clearInterval(qualityTimer);
-    qualityTimer = setInterval(() => {
-      checkQualityMenus();
-      if (!activeVideo?.isConnected || activeVideo.paused ||
-          (qualityAttempts.get(activeVideo)?.count || 0) >= 12 ||
-          qualityAttempts.get(activeVideo)?.phase === 'done') {
-        clearInterval(qualityTimer); qualityTimer = 0;
-      }
-    }, 500);
-  }
-
-  document.addEventListener('mouseenter', event => {
-    if (SITE !== 'facebook') return;
-    const target = event.target;
-    if (target instanceof Element && target.closest?.('[data-testid*="video" i], [role="region"], .x1yztbdb')) {
-      const v = target.querySelector?.('video') || activeVideo;
-      if (v && !v.paused) checkQualityMenus();
-    }
-  }, true);
-
-  function verifyStreamResolution(video, retryCount = 0) {
-    if (!video || !video.isConnected || video.paused) return;
+  // Quality is applied through stream responses. Never drive the site's
+  // menus: a Reel dialog and its Close button are navigation controls.
+  function playbackStatus(video) {
+    const base = {site: SITE, enabled: settings.enabled, strictBlock: settings.strictBlock, requestedQuality: settings.quality};
+    if (!settings.enabled) return {...base, state: 'off', quality: 'Data saving is off'};
+    if (settings.strictBlock) return {...base, state: 'blocked', quality: 'Video requests are blocked'};
+    if (!video || !video.isConnected || video.paused) return {...base, state: 'ready', quality: 'Play a video to check its quality'};
+    const resolution = Math.min(video.videoWidth || 0, video.videoHeight || 0);
     if (settings.quality === 'audio') {
-      document.documentElement?.setAttribute('data-qg-quality-applied', 'Radio mode (sound only) active');
-      showPillBadge(video, 'Radio Mode (Sound Only)');
-      return;
+      return {...base, state: 'requested', actualResolution: resolution || null,
+        quality: resolution ? `Audio requested; video is still ${resolution}p` : 'Audio requested; video transfer is not measured'};
     }
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (w === 0 || h === 0) {
-      if (retryCount < 6) {
-        setTimeout(() => verifyStreamResolution(video, retryCount + 1), 300);
-      }
-      return;
-    }
-    const res = Math.min(w, h);
-    const target = Number(settings.quality) || 360;
-    const isAuto = settings.quality === 'auto';
+    if (!resolution) return {...base, state: 'ready', quality: 'Waiting for video details'};
+    if (settings.quality === 'auto') return {...base, state: 'default', actualResolution: resolution, quality: `${resolution}p · Site default`};
+    const withinTarget = resolution <= Number(settings.quality);
+    return {...base, state: withinTarget ? 'verified' : 'above', actualResolution: resolution,
+      mediaSize: mediaSizes.get(sourceKey(video).split('#')[0]) || null,
+      quality: withinTarget ? `${resolution}p · Within target` : `${resolution}p · Above target`};
+  }
 
-    if (isAuto) {
-      const label = `${res}p (Auto)`;
-      document.documentElement?.setAttribute('data-qg-quality-applied', `${res}p stream active`);
-      showPillBadge(video, label);
-      return;
-    }
-
-    // Check player-level or hook-level active quality confirmations
-    const playerQuality = QuotaGuardPlayer.activeResolution?.(video) ||
-      (video.getAttribute('data-qg-player-quality') ? Number(video.getAttribute('data-qg-player-quality')) : null);
-    const appliedQuality = document.documentElement?.getAttribute('data-qg-quality-applied') || '';
-    const isTargetApplied = appliedQuality.includes(`${target}p`) || appliedQuality.includes('SD requested') || appliedQuality.includes('SD stream');
-
-    // 1. Direct player confirmation (e.g. Facebook menu has 360p checked)
-    if (playerQuality && playerQuality <= target) {
-      const label = `${playerQuality}p stream active • Bandwidth saved`;
-      document.documentElement?.setAttribute('data-qg-quality-applied', label);
-      incrementStat('videosCapped', 18);
-      showPillBadge(video, `${playerQuality}p Saved`);
-      return;
-    }
-
-    // 2. Aspect-ratio aware calculation:
-    // Square (1:1, 720x720) or vertical (4:5, 576x720) videos on Facebook are encoded as SD streams labeled "360p".
-    // Normalize to 16:9 equivalent pixel height to avoid false "Server Min" badges on SD feeds.
-    const equivRes = Math.round(Math.sqrt((w * h) * (9 / 16)));
-    const effectiveRes = Math.min(res, equivRes);
-
-    if (res <= target || effectiveRes <= target || (isTargetApplied && res <= 720)) {
-      const displayRes = (res <= target) ? res : target;
-      const label = `${displayRes}p stream active • Bandwidth saved`;
-      document.documentElement?.setAttribute('data-qg-quality-applied', label);
-      incrementStat('videosCapped', 18);
-      showPillBadge(video, `${displayRes}p Saved`);
-    } else {
-      // Truly higher resolution only when server provided no lower stream
-      const label = `Playing ${res}p HD (Server single stream — no ${target}p available)`;
-      document.documentElement?.setAttribute('data-qg-quality-applied', label);
-      showPillBadge(video, `${res}p (Server Min)`);
+  function verifyStreamResolution(video) {
+    if (!video || !video.isConnected || !settings.enabled || settings.strictBlock) return;
+    const status = playbackStatus(video);
+    if (status.state === 'verified') recordOnce(video, verifiedSources, 'videosCapped');
+    if (!video.paused) {
+      const size = status.state === 'above' ? (status.mediaSize?.label || 'Size unavailable') : '';
+      showPillBadge(video, status.quality + (size ? ` · ${size}` : ''), status);
+      const badge = videos.get(video)?.badge;
+      if (badge) badge.title = status.state === 'above'
+        ? (status.mediaSize ? `${status.mediaSize.bytes.toLocaleString()} bytes. ${status.mediaSize.kind === 'total' ? 'Full media resource size reported by the server; not bytes downloaded.' : 'Cumulative audio/video bytes accepted by this player’s media buffers, including reused data; not total file size or network usage.'} Click to change quality (Alt+Q).` : 'The server has not provided a total size for this video. No estimate is shown. Click to change quality (Alt+Q).')
+        : 'Change QuotaGuard quality (Alt+Q)';
     }
   }
 
@@ -418,24 +357,16 @@
     if (isVideoElement(event.target)) {
       const video = event.target;
       activeVideo = video;
-      video.setAttribute('data-qg-manual-play', 'yes');
       renderChip(video);
-      startQualityAttempt(video);
-      const onReady = () => verifyStreamResolution(video);
-      if (video.videoWidth > 0) {
-        verifyStreamResolution(video);
-      } else {
-        video.addEventListener('loadeddata', onReady, { once: true });
-        video.addEventListener('resize', onReady, { once: true });
-        video.addEventListener('timeupdate', onReady, { once: true });
-        verifyStreamResolution(video);
-      }
+      verifyStreamResolution(video);
     }
   }, true);
 
-  document.addEventListener('pause', event => {
-    if (event.target === activeVideo && qualityTimer) { clearInterval(qualityTimer); qualityTimer = 0; }
-  }, true);
+  for (const name of ['loadeddata', 'resize', 'timeupdate']) {
+    document.addEventListener(name, event => {
+      if (isVideoElement(event.target)) verifyStreamResolution(event.target);
+    }, true);
+  }
 
   function sweep() {
     for (const [video, state] of videos) {
@@ -471,7 +402,7 @@
   }
 
   const observer = new MutationObserver(records => {
-    let runQuality = false;
+    let needsSweep = false;
     for (const rec of records) {
       if (rec.type === 'attributes') {
         if (isVideoElement(rec.target)) applyVideo(rec.target);
@@ -481,13 +412,12 @@
         if (!(node instanceof Element)) continue;
         if (isVideoElement(node)) applyVideo(node);
         else if (node.querySelector('video')) scan(node);
-        else runQuality = true;
+        else needsSweep = true;
       }
     }
-    if (!mutationTimer && runQuality) {
+    if (!mutationTimer && needsSweep) {
       mutationTimer = setTimeout(() => {
         mutationTimer = 0;
-        checkQualityMenus();
         sweep();
       }, 350);
     }
@@ -514,25 +444,20 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.settings) {
       settings = QuotaGuard.normalize(changes.settings.newValue)[SITE];
-      if (activeVideo && !activeVideo.paused) startQualityAttempt(activeVideo);
+      document.documentElement?.removeAttribute('data-qg-quality-applied');
       refreshAll();
     }
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === 'qg-media-size') {
+      rememberMediaSize(message.url, 'total', message.bytes);
+      return;
+    }
     if (message?.type === 'qg-status') {
-      let currentQuality = document.documentElement?.getAttribute('data-qg-quality-applied') || null;
-      if (!currentQuality) {
-        const v = activeVideo || [...document.querySelectorAll('video')].find(el => QuotaGuardPlayer.visible(el) && !el.paused);
-        if (v && v.videoWidth > 0) {
-          const res = Math.min(v.videoWidth, v.videoHeight);
-          currentQuality = `${res}p stream active`;
-        }
-      }
-      sendResponse({
-        quality: currentQuality,
-        site: SITE
-      });
+      const current = activeVideo?.isConnected && !activeVideo.paused ? activeVideo :
+        [...document.querySelectorAll('video')].find(video => QuotaGuardPlayer.visible(video) && !video.paused);
+      sendResponse(playbackStatus(current));
     }
   });
 

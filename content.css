@@ -1,117 +1,87 @@
 .qg-play-chip {
   appearance: none !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
   transform: translate(-50%, -50%) !important;
   z-index: 2147483600 !important;
   width: auto !important;
-  max-width: calc(100% - 40px) !important;
-  border: 1px solid rgba(112, 241, 204, 0.45) !important;
-  border-radius: 999px !important;
-  padding: 12px 20px !important;
-  background: rgba(16, 45, 44, 0.95) !important;
-  color: #f0fffc !important;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.65) !important;
-  font-family: system-ui, -apple-system, sans-serif !important;
-  font-size: 13.5px !important;
-  font-weight: 750 !important;
-  line-height: 1.1 !important;
+  max-width: calc(100% - 32px) !important;
+  border: 1px solid #64736b !important;
+  border-radius: 6px !important;
+  padding: 10px 16px !important;
+  background: rgba(16, 20, 18, .94) !important;
+  color: #f2f5f3 !important;
+  font: 500 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
   text-transform: none !important;
   cursor: pointer !important;
-  opacity: .98 !important;
   pointer-events: auto !important;
-  backdrop-filter: blur(8px) !important;
-  transition: transform 0.15s ease, background 0.15s ease !important;
 }
-.qg-play-chip:hover {
-  background: #1d4e46 !important;
-  transform: translate(-50%, -50%) scale(1.04) !important;
-}
-.qg-play-chip:focus-visible { outline: 3px solid #70f1cc !important; }
-
-/* Hide artificial play chip on platforms with native prominent center play buttons */
+.qg-play-chip:hover { background: #27332c !important; }
+.qg-play-chip:focus-visible, .qg-pill-badge:focus-visible { outline: 2px solid #b9e3ca !important; outline-offset: 3px !important; }
 :root[data-qg-site="tiktok"] .qg-play-chip,
-:root[data-qg-site="youtube"] .qg-play-chip {
-  display: none !important;
-}
+:root[data-qg-site="youtube"] .qg-play-chip { display: none !important; }
 
-/* Subtle on-video indicator pill that confirms stream resolution persistently */
+/* Keep the utility chip below the top-corner native player controls. */
 .qg-pill-badge {
+  appearance: none !important;
   position: absolute !important;
-  top: 14px !important;
-  right: 14px !important;
-  z-index: 2147483640 !important;
+  top: auto !important;
+  bottom: var(--qg-chip-bottom, 64px) !important;
+  left: auto !important;
+  right: var(--qg-chip-right, 12px) !important;
+  z-index: 2147483600 !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
-  background: rgba(16, 45, 44, 0.92) !important;
-  backdrop-filter: blur(6px) !important;
-  -webkit-backdrop-filter: blur(6px) !important;
-  border: 1px solid rgba(91, 225, 180, 0.55) !important;
-  color: #7af8c3 !important;
-  font-family: system-ui, -apple-system, sans-serif !important;
-  font-size: 11.5px !important;
-  font-weight: 750 !important;
-  padding: 4px 10px !important;
-  border-radius: 999px !important;
-  pointer-events: auto !important;
+  gap: 6px !important;
+  width: max-content !important;
+  max-width: var(--qg-chip-max, calc(100% - 24px)) !important;
+  box-sizing: border-box !important;
+  min-height: 26px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+  padding: 4px 7px !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  border-radius: 6px !important;
+  background: rgba(23,25,31,.92) !important;
+  color: #f2f4f7 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  font: 500 11px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
   cursor: pointer !important;
-  user-select: none !important;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.55) !important;
-  opacity: 0.95 !important;
-  transform: translateY(0) !important;
-  transition: opacity 0.3s ease, transform 0.15s ease, background 0.15s ease !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity .15s ease-out !important;
 }
-
-.qg-pill-badge:hover {
-  background: rgba(22, 60, 58, 0.98) !important;
-  transform: scale(1.04) !important;
-  opacity: 1 !important;
-}
-
-/* On TikTok, shift left to stay clear of the top-right options (...) menu */
-:root[data-qg-site="tiktok"] .qg-pill-badge,
-.qg-pill-badge.qg-tiktok {
-  right: 56px !important;
-}
-
-/* Distinct warm amber badge when server only provides HD (no lower stream available) */
-.qg-pill-badge.qg-pill-server-min {
-  background: rgba(45, 36, 16, 0.92) !important;
-  border-color: rgba(255, 193, 7, 0.6) !important;
-  color: #ffd54f !important;
-}
-
-.qg-pill-badge.qg-pill-server-min:hover {
-  background: rgba(60, 48, 20, 0.98) !important;
-}
-
-/* Floating screen toast for quick keyboard shortcuts */
+.qg-pill-badge [hidden] { display: none !important; }
+.qg-badge-quality { font-variant-numeric: tabular-nums !important; color: #f2f4f7 !important; }
+.qg-badge-warning { width: 12px !important; height: 12px !important; flex: 0 0 12px !important; color: #edc68b !important; }
+.qg-badge-size { color: #c0c7d2 !important; font-weight: 400 !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+.qg-player:hover > .qg-pill-badge,
+.qg-player:focus-within > .qg-pill-badge,
+.qg-pill-badge:focus-visible { opacity: 1 !important; pointer-events: auto !important; }
+.qg-pill-badge:hover { background: #282d35 !important; border-color: #8ce3c1 !important; }
 .qg-toast {
   position: fixed !important;
   bottom: 24px !important;
   right: 24px !important;
   z-index: 2147483647 !important;
-  background: #102d2c !important;
-  color: #7af8c3 !important;
-  border: 1px solid #3d7e65 !important;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.45) !important;
-  border-radius: 10px !important;
-  padding: 10px 16px !important;
-  font-family: system-ui, -apple-system, sans-serif !important;
-  font-size: 13px !important;
-  font-weight: 650 !important;
+  max-width: min(360px, calc(100vw - 48px)) !important;
+  background: #18221c !important;
+  color: #edf1ee !important;
+  border: 1px solid #52665a !important;
+  border-radius: 6px !important;
+  padding: 10px 14px !important;
+  font: 500 12px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif !important;
   pointer-events: none !important;
-  transition: opacity 0.35s ease, transform 0.35s ease !important;
   opacity: 1 !important;
-  transform: translateY(0) !important;
+  transition: opacity .2s ease-out !important;
 }
-.qg-toast.qg-fade {
-  opacity: 0 !important;
-  transform: translateY(10px) !important;
+.qg-toast.qg-fade { opacity: 0 !important; }
+@media (prefers-reduced-motion: reduce) {
+  .qg-pill-badge, .qg-toast { transition: none !important; }
 }
+@media (hover: none) { .qg-pill-badge { opacity: .85 !important; pointer-events: auto !important; } }

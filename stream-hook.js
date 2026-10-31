@@ -11,10 +11,8 @@
 
   function quality() {
     const node = document.documentElement;
-    if (node?.getAttribute('data-qg-enabled') !== 'yes') {
-      // If content.js has not set attributes yet, use default 360p
-      return '360';
-    }
+    if (node?.getAttribute('data-qg-enabled') === 'no') return 'auto';
+    // Until the isolated content script loads settings, use the default ceiling.
     return node?.getAttribute('data-qg-quality') || '360';
   }
 
@@ -56,11 +54,7 @@
     }
   } catch (_) {}
 
-  // YouTube Anti-Adblock Compliance:
-  // Do NOT define accessor properties (getter/setter) on window.ytInitialPlayerResponse.
-  // YouTube's anti-adblock integrity checker specifically probes Object.getOwnPropertyDescriptor(window, 'ytInitialPlayerResponse').
-  // Defining an accessor descriptor immediately triggers YouTube's "Ad blockers violate YouTube's Terms of Service" banner.
-  // YouTube video quality is securely enforced via the official HTML5 Player API (#movie_player.setPlaybackQualityRange).
+  // Leave YouTube's initial player object and media playback methods intact.
 
   function classifyUrl(raw) {
     try {
@@ -241,6 +235,47 @@
     return originalJsonParse.call(this, text, reviver);
   };
 
+  // Buffer only finite manifest/API responses, never video segments. Adapt once,
+  // after all chunks arrive; JSON and XML tokens can cross arbitrary boundaries.
+  // Oversize responses pass through byte-for-byte to bound memory use.
+  function adaptedStream(body, type) {
+    const chunks = [];
+    let length = 0;
+    let passthrough = false;
+    return body.pipeThrough(new TransformStream({
+      transform(chunk, controller) {
+        if (passthrough) { controller.enqueue(chunk); return; }
+        chunks.push(chunk);
+        length += chunk.byteLength;
+        if (length > 8 * 1024 * 1024) {
+          passthrough = true;
+          for (const saved of chunks) controller.enqueue(saved);
+          chunks.length = 0;
+        }
+      },
+      flush(controller) {
+        if (passthrough || !length) return;
+        const bytes = new Uint8Array(length);
+        let offset = 0;
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+        const text = new TextDecoder().decode(bytes);
+        const result = adapt(text, type);
+        controller.enqueue(result === text ? bytes : new TextEncoder().encode(result));
+      }
+    }));
+  }
+
+  function withResponseMetadata(response, original) {
+    return new Proxy(response, {
+      get(target, prop) {
+        if (prop === 'url' || prop === 'redirected' || prop === 'type') return original[prop];
+        if (prop === 'clone') return () => withResponseMetadata(target.clone(), original);
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+  }
+
   // --- Fetch Hook ---
   const nativeFetch = window.fetch;
   window.fetch = function (...args) {
@@ -252,59 +287,14 @@
     if (!streamType || quality() === 'auto') return Reflect.apply(nativeFetch, window, args);
 
     return Reflect.apply(nativeFetch, window, args).then(response => {
-      if (!response.ok) return response;
-      return new Proxy(response, {
-        get(target, prop) {
-          if (prop === 'text') return async () => adapt(await target.text(), streamType);
-          if (prop === 'json') return async () => {
-            const raw = await target.text();
-            const adapted = adapt(raw, streamType);
-            try { return originalJsonParse(adapted); }
-            catch (_) { return originalJsonParse(raw); }
-          };
-          if (prop === 'arrayBuffer') return async () => {
-            const bytes = await target.arrayBuffer();
-            return new TextEncoder().encode(adapt(new TextDecoder().decode(bytes), streamType)).buffer;
-          };
-          if (prop === 'body') {
-            const origBody = target.body;
-            if (!origBody || typeof TransformStream === 'undefined') return origBody;
-            try {
-              const decoder = new TextDecoder();
-              const encoder = new TextEncoder();
-              let buf = '';
-              const transform = new TransformStream({
-                transform(chunk, controller) {
-                  const text = decoder.decode(chunk, { stream: true });
-                  buf += text;
-                  if (buf.includes('dash_manifest') || buf.includes('playable_url') || buf.includes('<MPD') ||
-                      buf.includes('bitrateInfo') || buf.includes('bit_rate') || buf.includes('streamingData')) {
-                    const adapted = adapt(buf, streamType);
-                    controller.enqueue(encoder.encode(adapted));
-                    buf = '';
-                  } else {
-                    controller.enqueue(chunk);
-                  }
-                },
-                flush(controller) {
-                  if (buf.length > 0) {
-                    const finalStr = buf + decoder.decode();
-                    const adapted = adapt(finalStr, streamType);
-                    controller.enqueue(encoder.encode(adapted));
-                    buf = '';
-                  }
-                }
-              });
-              return origBody.pipeThrough(transform);
-            } catch (_) {
-              return origBody;
-            }
-          }
-          if (prop === 'clone') return () => new Proxy(target.clone(), this);
-          const value = Reflect.get(target, prop, target);
-          return typeof value === 'function' ? value.bind(target) : value;
-        }
+      if (!response.ok || !response.body || typeof TransformStream === 'undefined') return response;
+      const headers = new Headers(response.headers);
+      headers.delete('content-length');
+      headers.delete('content-encoding');
+      const adapted = new Response(adaptedStream(response.body, streamType), {
+        status: response.status, statusText: response.statusText, headers
       });
+      return withResponseMetadata(adapted, response);
     });
   };
 

@@ -30,7 +30,7 @@
   }
   function limit(src, quality) {
     const target = Number(quality);
-    if (![240, 360, 480].includes(target)) return {text: src, changed: false};
+    if (![240, 360, 480, 540, 720].includes(target)) return {text: src, changed: false};
     const variants = parseVariants(src);
     // Only process playlists that contain at least 2 video variants with dimensions
     const videoVariants = variants.filter(v => v.uri && v.pixels !== null);

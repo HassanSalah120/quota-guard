@@ -27,5 +27,8 @@
       String(option.label || '').trim()
     )) || null;
   }
-  root.QuotaGuardQuality = { parseResolution, choose };
+  function formatMediaBytes(bytes) {
+    return bytes < 1000000 ? `${(bytes / 1000).toFixed(1)} KB` : `${(bytes / 1000000).toFixed(2)} MB`;
+  }
+  root.QuotaGuardQuality = { parseResolution, choose, formatMediaBytes };
 })(globalThis);

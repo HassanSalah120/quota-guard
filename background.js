@@ -2,13 +2,16 @@ importScripts('settings.js');
 
 const MANAGED_RULE_IDS = [1001, 1002, 1003, 1004, 1101, 1201, 1202, 1301, 1401, 1402, 1501, 1502];
 
+function downlinkHint(quality) {
+  return ({audio: '0.1', 240: '0.35', 360: '0.75', 480: '1.4', 540: '1.5', 720: '2.5'})[quality] || '0.75';
+}
+
 async function syncBlockingRules() {
   const stored = await chrome.storage.local.get('settings');
   const settings = QuotaGuard.normalize(stored.settings);
   const addRules = [];
 
-  // Network Layer Data Saving Headers (Save-Data: on, Downlink: 0.35, ECT: 3g)
-  // Forces Facebook and X CDNs/backends to serve low-resolution streams natively.
+  // Request reduced-data variants where the server supports these hints.
   if (settings.facebook.enabled && settings.facebook.quality !== 'auto') {
     addRules.push({
       id: 1001, priority: 2,
@@ -16,12 +19,12 @@ async function syncBlockingRules() {
         type: 'modifyHeaders',
         requestHeaders: [
           { header: 'Save-Data', operation: 'set', value: 'on' },
-          { header: 'Downlink', operation: 'set', value: '0.35' },
-          { header: 'ECT', operation: 'set', value: '3g' },
-          { header: 'Sec-CH-Prefers-Reduced-Data', operation: 'set', value: '1' }
+          { header: 'Downlink', operation: 'set', value: downlinkHint(settings.facebook.quality) },
+          { header: 'ECT', operation: 'set', value: '3g' }
         ]
       },
       condition: {
+        initiatorDomains: ['facebook.com'],
         requestDomains: ['facebook.com', 'fbcdn.net'],
         resourceTypes: ['xmlhttprequest', 'media', 'sub_frame', 'other']
       }
@@ -35,11 +38,12 @@ async function syncBlockingRules() {
         type: 'modifyHeaders',
         requestHeaders: [
           { header: 'Save-Data', operation: 'set', value: 'on' },
-          { header: 'Downlink', operation: 'set', value: '0.35' },
+          { header: 'Downlink', operation: 'set', value: downlinkHint(settings.x.quality) },
           { header: 'ECT', operation: 'set', value: '3g' }
         ]
       },
       condition: {
+        initiatorDomains: ['x.com', 'twitter.com'],
         requestDomains: ['x.com', 'twitter.com', 'twimg.com'],
         resourceTypes: ['xmlhttprequest', 'media', 'sub_frame', 'other']
       }
@@ -53,21 +57,19 @@ async function syncBlockingRules() {
         type: 'modifyHeaders',
         requestHeaders: [
           { header: 'Save-Data', operation: 'set', value: 'on' },
-          { header: 'Downlink', operation: 'set', value: '0.35' },
-          { header: 'ECT', operation: 'set', value: '3g' },
-          { header: 'Sec-CH-Prefers-Reduced-Data', operation: 'set', value: '1' }
+          { header: 'Downlink', operation: 'set', value: downlinkHint(settings.tiktok.quality) },
+          { header: 'ECT', operation: 'set', value: '3g' }
         ]
       },
       condition: {
+        initiatorDomains: ['tiktok.com'],
         requestDomains: ['tiktok.com', 'tiktokv.com', 'tiktokcdn.com', 'byteoversea.com', 'ibytedtos.com'],
         resourceTypes: ['xmlhttprequest', 'media', 'sub_frame', 'other']
       }
     });
   }
 
-  // Note: We deliberately do NOT inject network-layer headers (Save-Data, Downlink, ECT) on YouTube/GoogleVideo.
-  // Google's ad-verification infrastructure flags header modifications on ad chunks/telemetry as anomalous or ad-blocking.
-  // YouTube video quality is enforced cleanly and safely via the HTML5 Player API (#movie_player.setPlaybackQualityRange).
+  // Leave YouTube request headers intact; use stream filtering and player controls.
 
   if (settings.facebook.enabled && settings.facebook.strictBlock) {
     addRules.push({
@@ -135,137 +137,82 @@ async function syncBlockingRules() {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => syncBlockingRules().catch(console.warn));
-chrome.runtime.onStartup.addListener(() => syncBlockingRules().catch(console.warn));
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.settings) syncBlockingRules().catch(console.warn);
+// One writer prevents lost counter updates when several tabs report together.
+let storageQueue = Promise.resolve();
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!['qg-stat', 'qg-setting'].includes(message?.type)) return;
+  let senderSite = null;
+  try { senderSite = QuotaGuard.siteForHost(new URL(sender.url || sender.tab?.url).hostname); } catch (_) {}
+  const isPopup = sender.url === chrome.runtime.getURL('popup.html');
+  const site = message.type === 'qg-stat' ? senderSite : message.site;
+  const validStat = message.type === 'qg-stat' && senderSite && Object.hasOwn(QuotaGuard.DEFAULT_STATS, message.field);
+  const validSetting = message.type === 'qg-setting' && Object.hasOwn(QuotaGuard.DEFAULTS, site || '') &&
+    (isPopup || senderSite === site) && Object.hasOwn(QuotaGuard.DEFAULTS[site], message.key);
+  if (!validStat && !validSetting) {
+    sendResponse({ok: false});
+    return;
+  }
+  storageQueue = storageQueue.catch(() => {}).then(async () => {
+    if (validStat) {
+      const stored = await chrome.storage.local.get('activity');
+      const activity = QuotaGuard.normalizeStats(stored.activity);
+      activity[site][message.field] += 1;
+      await chrome.storage.local.set({activity});
+    } else {
+      const stored = await chrome.storage.local.get('settings');
+      const settings = QuotaGuard.normalize(stored.settings);
+      settings[site][message.key] = message.value;
+      const normalized = QuotaGuard.normalize(settings);
+      if (normalized[site][message.key] !== message.value) throw new Error('Invalid setting');
+      await chrome.storage.local.set({settings: normalized});
+    }
+  });
+  storageQueue.then(() => sendResponse({ok: true}), () => sendResponse({ok: false}));
+  return true;
 });
-// Reconcile pre-existing settings when the service worker starts.
-syncBlockingRules().catch(console.warn);
 
-// --- Live Browser-Wide Network Speed Monitor ---
-let currentIntervalDl = 0;
-let currentIntervalUl = 0;
-let lastDlSpeed = 0;
-let lastUlSpeed = 0;
-let speedHistory = [];
-let monitorTimer = 0;
+// Serialize reconciliations so rapid setting changes cannot restore stale rules.
+let rulesQueue = Promise.resolve();
+function reconcileRules() {
+  rulesQueue = rulesQueue.catch(() => {}).then(syncBlockingRules);
+  rulesQueue.catch(console.warn);
+}
+chrome.runtime.onInstalled.addListener(() => {
+  reconcileRules();
+  chrome.action.setBadgeText({text: ''});
+  chrome.action.setTitle({title: 'QuotaGuard Data Saver'});
+});
+chrome.runtime.onStartup.addListener(reconcileRules);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.settings) reconcileRules();
+});
+reconcileRules();
 
-function formatBadgeSpeed(bytesPerSec, ulBytesPerSec) {
-  if (bytesPerSec >= 1024) {
-    const kb = bytesPerSec / 1024;
-    if (kb < 999) return `${Math.round(kb)}K`;
-    const mb = kb / 1024;
-    return mb < 10 ? `${mb.toFixed(1)}M` : `${Math.round(mb)}M`;
+// Native <video src> requests bypass window.fetch. Read server size headers on
+// the granted media hosts; never consume the body or invent missing lengths.
+const mediaRequestUrls = new Map();
+const mediaRequestFilter = {urls: chrome.runtime.getManifest().host_permissions, types: ['media', 'xmlhttprequest', 'other']};
+chrome.webRequest.onBeforeRequest.addListener(details => {
+  if (details.tabId >= 0 && !mediaRequestUrls.has(details.requestId)) {
+    if (mediaRequestUrls.size >= 500) mediaRequestUrls.delete(mediaRequestUrls.keys().next().value);
+    mediaRequestUrls.set(details.requestId, details.url);
   }
-  if (ulBytesPerSec >= 1024) {
-    const kb = ulBytesPerSec / 1024;
-    if (kb < 999) return `↑${Math.round(kb)}K`;
-    const mb = kb / 1024;
-    return mb < 10 ? `↑${mb.toFixed(1)}M` : `↑${Math.round(mb)}M`;
+}, mediaRequestFilter);
+chrome.webRequest.onResponseStarted.addListener(details => {
+  if (details.tabId < 0 || details.statusCode < 200 || details.statusCode >= 300) return;
+  const headers = Object.fromEntries((details.responseHeaders || []).map(header => [header.name.toLowerCase(), header.value || '']));
+  if (!/^(video|audio)\//i.test(headers['content-type'] || '') && details.type !== 'media') return;
+  const range = /^bytes\s+\d+-\d+\/(\d+)$/i.exec(headers['content-range'] || '');
+  let bytes = range ? Number(range[1]) : null;
+  const url = mediaRequestUrls.get(details.requestId) || details.url;
+  if (bytes === null && details.statusCode === 200 && !/[?&](?:range|sq|part|segment)=/i.test(url) && /^\d+$/.test(headers['content-length'] || '')) {
+    bytes = Number(headers['content-length']);
   }
-  return '';
-}
-
-function formatSpeedFull(bytesPerSec) {
-  if (!bytesPerSec || bytesPerSec < 1024) return `${Math.round(bytesPerSec || 0)} B/s`;
-  const kb = bytesPerSec / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB/s`;
-  const mb = kb / 1024;
-  return `${mb.toFixed(2)} MB/s`;
-}
-
-function tickSpeedMonitor() {
-  lastDlSpeed = currentIntervalDl;
-  lastUlSpeed = currentIntervalUl;
-  currentIntervalDl = 0;
-  currentIntervalUl = 0;
-
-  speedHistory.push({ dl: lastDlSpeed, ul: lastUlSpeed });
-  if (speedHistory.length > 20) speedHistory.shift();
-
-  // Update Toolbar Icon Badge
-  const badgeText = formatBadgeSpeed(lastDlSpeed, lastUlSpeed);
-  try {
-    chrome.action.setBadgeText({ text: badgeText });
-    chrome.action.setBadgeBackgroundColor({ color: '#102d2c' });
-    if (chrome.action.setBadgeTextColor) {
-      chrome.action.setBadgeTextColor({ color: '#7af8c3' });
-    }
-  } catch (_) {}
-
-  // Update Toolbar Icon Hover Tooltip
-  try {
-    const tooltip = `QuotaGuard Network Usage:\n↓ ${formatSpeedFull(lastDlSpeed)} Download\n↑ ${formatSpeedFull(lastUlSpeed)} Upload`;
-    chrome.action.setTitle({ title: tooltip });
-  } catch (_) {}
-
-  // Update local storage so popup can display real-time usage
-  chrome.storage.local.set({
-    liveSpeed: {
-      dl: lastDlSpeed,
-      ul: lastUlSpeed,
-      history: speedHistory,
-      time: Date.now()
-    }
-  }).catch(() => {});
-}
-
-// Track browser-wide downloads via webRequest response headers
-if (chrome.webRequest?.onResponseStarted) {
-  try {
-    chrome.webRequest.onResponseStarted.addListener(
-      details => {
-        let bytes = 0;
-        if (details.responseHeaders) {
-          for (const h of details.responseHeaders) {
-            const name = h.name.toLowerCase();
-            if (name === 'content-length') {
-              bytes = parseInt(h.value, 10) || 0;
-              break;
-            }
-            if (name === 'content-range') {
-              const m = h.value.match(/bytes\s+(\d+)-(\d+)/i);
-              if (m) bytes = (parseInt(m[2], 10) - parseInt(m[1], 10) + 1) || 0;
-              break;
-            }
-          }
-        }
-        currentIntervalDl += (bytes > 0 ? bytes : 1024);
-      },
-      { urls: ['<all_urls>'] },
-      ['responseHeaders']
-    );
-  } catch (err) {
-    console.warn('webRequest onResponseStarted init error:', err);
+  if (!Number.isSafeInteger(bytes) || bytes < 0) return;
+  for (const sourceUrl of new Set([url, details.url])) {
+    chrome.tabs.sendMessage(details.tabId, {type: 'qg-media-size', url: sourceUrl, bytes}).catch(() => {});
   }
-}
-
-// Track browser-wide uploads via webRequest request headers
-if (chrome.webRequest?.onBeforeSendHeaders) {
-  try {
-    chrome.webRequest.onBeforeSendHeaders.addListener(
-      details => {
-        let bytes = 0;
-        if (details.requestHeaders) {
-          for (const h of details.requestHeaders) {
-            if (h.name.toLowerCase() === 'content-length') {
-              bytes = parseInt(h.value, 10) || 0;
-              break;
-            }
-          }
-        }
-        currentIntervalUl += (bytes > 0 ? bytes : 512);
-      },
-      { urls: ['<all_urls>'] },
-      ['requestHeaders']
-    );
-  } catch (err) {
-    console.warn('webRequest onBeforeSendHeaders init error:', err);
-  }
-}
-
-if (!monitorTimer) {
-  tickSpeedMonitor();
-  monitorTimer = setInterval(tickSpeedMonitor, 1000);
-}
+}, mediaRequestFilter, ['responseHeaders']);
+const forgetMediaRequest = details => mediaRequestUrls.delete(details.requestId);
+chrome.webRequest.onCompleted.addListener(forgetMediaRequest, mediaRequestFilter);
+chrome.webRequest.onErrorOccurred.addListener(forgetMediaRequest, mediaRequestFilter);
