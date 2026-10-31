@@ -5,7 +5,7 @@ import os from 'node:os';
 import assert from 'node:assert/strict';
 
 const BROWSER_PATH = process.env.QG_BROWSER_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-const EXT_PATH = path.resolve(import.meta.dirname, '..');
+const EXT_PATH = process.env.QG_EXTENSION_PATH ? path.resolve(process.env.QG_EXTENSION_PATH) : path.resolve(import.meta.dirname, '..');
 const CDP_PORT = 9245;
 
 console.log('=== Running Popup Smoke & UI Render Test ===\n');
